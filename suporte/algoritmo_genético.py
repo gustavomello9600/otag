@@ -159,6 +159,6 @@ if __name__ == "__main__":
     X = np.arange(11)
     Y = [np.mean(adg) for adg in [[ind.adaptação for ind in gen] for gen in pop.gerações]]
 
-plt.plot(X, Y)
+    plt.plot(X, Y)
 
-plt.show()
+    plt.show()
