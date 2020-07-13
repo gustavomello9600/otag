@@ -3,6 +3,7 @@
 
 import uuid
 import numpy as np
+from copy import copy
 
 np.random.seed(0)
 
@@ -48,17 +49,21 @@ class População:
         self.gerações   = [indivíduos]
         self.n          = len(indivíduos)
         self.mutações   = []
-        
+
+    def avançar_gerações(self, n):
+        for _ in range(n):
+            self.próxima_geração()
         
     def próxima_geração(self):
         self.geração += 1
         
         indivíduos_selecionados = self.seleção_natural()
         nova_geração            = self.reprodução(indivíduos_selecionados)
-        nova_geração            = self.mutação(nova_geração)
+
+        self.mutação(nova_geração)
         
         self.gerações.append(nova_geração)
-        self.indivíduos = nova_geração
+        self.indivíduos = sorted(nova_geração, reverse=True)
         
         return self
         
@@ -79,7 +84,7 @@ class População:
         ind.adaptação_testada = True
         
     def reprodução(self, inds):
-        nova_geração = inds
+        nova_geração = copy(inds)
         
         pesos = np.array([i.adaptação for i in inds])
         pas   = probabilidades_acumuladas = np.cumsum(pesos)/sum(pesos)
@@ -93,13 +98,14 @@ class População:
                 p2   = np.random.random()
                 ind2 = inds[np.argmax(pas > p2)]
                 
-            ind_filho = self.crossover(ind1, ind2)
+            ind_filho = self.crossover(ind1, ind2, len(nova_geração) - len(inds))
+            self.conseguir_adaptação(ind_filho)
             nova_geração.append(ind_filho)
             
         return nova_geração
             
     #Sobrescrever
-    def crossover(self, ind1, ind2):
+    def crossover(self, ind1, ind2, i):
         k1, k2 = np.random.randint(1, 8, (2,))
         
         while k1 == k2:
@@ -107,7 +113,8 @@ class População:
             
         kmax, kmin = int(max(k1, k2)), int(min(k1, k2))
         
-        return Indivíduo(ind1.gene[:kmin] + ind2.gene[kmin:kmax] + ind1.gene[kmax:])     
+        return Indivíduo(ind1.gene[:kmin] + ind2.gene[kmin:kmax] + ind1.gene[kmax:],
+                         nome="G{}_{}".format(self.geração, i))
     
     #Sobrescrever
     def mutação(self, g):
@@ -139,9 +146,19 @@ class População:
     def __str__(self):
         return ("População de {} indivíduos:\n".format(self.n)
                 + (self.n *"> {}\n").format(*self.indivíduos)
+                + "---------Mutações---------\n"
                 + "\n".join(self.mutações))
-              
-Pop = População()
-Pop.próxima_geração()
 
-print(Pop.indivíduos)
+
+if __name__ == "__main__":
+    pop = População()
+    pop.avançar_gerações(10)
+
+    from matplotlib import pyplot as plt
+
+    X = np.arange(11)
+    Y = [np.mean(adg) for adg in [[ind.adaptação for ind in gen] for gen in pop.gerações]]
+
+plt.plot(X, Y)
+
+plt.show()
