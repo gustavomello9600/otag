@@ -1,15 +1,27 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+import pickle
 import numpy as np
 from sympy import *
-from copy import copy
-from numpy.linalg import inv
+from numpy.linalg import solve
 from matplotlib import pyplot as plt
 
 matriz_K_está_pronta = False
 K_matrix             = None
 l, t, v, E           = None, None, None, None
+
+último_tempo = 0
+
+def monitorar(mensagem, início):
+    agora    = default_timer()
+    até_aqui = agora - início
+
+    global último_tempo
+    na_operação  = até_aqui - último_tempo
+    último_tempo = até_aqui
+
+    print("> {: >10.5f}. {} ({:.5f})".format(até_aqui, mensagem, na_operação))
 
 def elemento_de_membrana_quadrada(L, t_=0.01, v_=0.3, E_=210e9):
     global matriz_K_está_pronta
@@ -19,6 +31,7 @@ def elemento_de_membrana_quadrada(L, t_=0.01, v_=0.3, E_=210e9):
     if not matriz_K_está_pronta:
         print("-----------------")
         print("> Calculando K(e)")
+        print("Necessário apenas uma vez")
         qsi, eta = symbols("xi eta")
     
         N1_expr = (1/4) * (1 - eta) * (1 - qsi)
@@ -80,7 +93,7 @@ class Nó:
             return False
         
     def __eq__(self, other):
-        (self.x, self.y) == (other.x, other.y)
+        return (self.x, self.y) == (other.x, other.y)
     
     def __lt__(self, other):
         if self == other or self > other: return False
@@ -131,27 +144,39 @@ class Elemento:
     
 class Malha:
 
-    def __init__(self, elementos):
+    def __init__(self, elementos, nós=None, ordenado=False):
+        nós_fornecidos = False if nós is None else True
+
         self.elementos = elementos
-        self.bordas_de_elementos = [borda for bordas in [e.bordas for e in elementos]
-                                          for borda in bordas]
-        self.bordas = []
-        self.lados  = []
-        
-        lista_teste = copy(self.bordas_de_elementos)
-        while len(lista_teste) > 0:
-            lado = lista_teste.pop(0)
-            conjugado = (lado[1], lado[0])
-            
-            if conjugado not in lista_teste:
-                self.bordas.append(lado)
-            else:
-                lista_teste.remove(conjugado)
-            self.lados.append(lado)
-            
-        self.nós = sorted(list(set([nó for nós in self.lados for nó in nós])), reverse=True)
+        self.ne        = len(elementos)
+
+        if nós_fornecidos:
+            self.nós = nós
+        else:
+            self.nós = []
+            for nó in [elemento for elemento in elementos]:
+                if nó not in self.nós:
+                    self.nós.append(nó)
+
+        if not ordenado:
+            self.nós = sorted(self.nós, reverse=True)
+
+        self.me = np.zeros((8, self.ne))
+
+        self.índice_por_coordenada = dict()
+        for e, elemento in enumerate(elementos):
+            for ie, nó in enumerate(elemento.nós):
+                i = self.nós.index(nó)
+                self.me[2*ie][e]      = 2*i
+                self.me[2 *ie + 1][e] = 2*i + 1
+                self.índice_por_coordenada[(nó.x, nó.y)] = i
+
+        self.bordas_traçadas = False
     
     def plot(self, deslocamento=None, k=2):
+        if not self.bordas_traçadas:
+            self.traçar_bordas()
+
         plt.rcParams['figure.dpi'] = 200
         
         if deslocamento is None: deslocamento = np.zeros(2*len(self.nós))
@@ -169,88 +194,237 @@ class Malha:
                 
         plt.axvline(x=0, c="black", lw="3")
         plt.axes().set_aspect("equal")
-    
+
+        plt.show()
+
+    def traçar_bordas(self):
+
+        self.bordas    = []
+        self.lados     = []
+
+        for elemento in self.elementos:
+            for lado in elemento.bordas:
+                if (lado[1], lado[0]) in self.bordas:
+                    self.lados.append(lado)
+                    self.bordas.remove((lado[1], lado[0]))
+                else:
+                    self.bordas.append(lado)
+        self.lados.extend(self.bordas)
+
+        self.bordas_traçadas = True
+
     def índice_do_nó(self, nó):
         return self.nós.index(nó)
     
                 
-def criar_malha(n, tipo="Placa em balanço 2 x 1"):
-    l = 1/n
-    nós = [[Nó((j*l, i*l)) for j in range(2*n + 1)]
-                           for i in range(n, -1, -1)]
-    
-    elementos = []
-    for i in range(n):
-        for j in range(2*n):
-            elementos.append(Elemento((nós[i][j], nós[i][j + 1], nós[i + 1][j + 1], nós[i + 1][j])))
-    
-    return Malha(elementos)
+def criar_malha(n, timed=False, início=None, tipo="Placa em balanço 2 x 1"):
+    l   = 1/n
 
-def resolva_para(n=2, P=100e6, malha=None):
+    nós       = []
+    elementos = []
+
+    for i in range(n, 0, -1):
+        for j in range(2 * n):
+            if i == n:
+                if j == 0:
+                    ul = Nó((      j*l,       i*l))
+                    ur = Nó(((j + 1)*l,       i*l))
+                    dr = Nó(((j + 1)*l, (i - 1)*l))
+                    dl = Nó((      j*l, (i - 1)*l))
+                    nós.extend([ul, ur, dr, dl])
+                else:
+                    ul = nós[-2 - (0 if j != 1 else 1)]
+                    ur = Nó(((j + 1)*l,       i*l))
+                    dr = Nó(((j + 1)*l, (i - 1)*l))
+                    dl = nós[-1 - (0 if j != 1 else 1)]
+                    nós.extend([ur, dr])
+
+            else:
+                if j == 0:
+                    ul = nós[3 if i == n - 1 else (n - i)*(2*n + 1) + 1]
+                    ur = nós[2 if i == n - 1 else (n - i)*(2*n + 1)]
+                    dr = Nó(((j + 1)*l, (i - 1)*l))
+                    dl = Nó((      j*l, (i - 1)*l))
+                    nós.extend([dr, dl])
+                else:
+                    if i == n - 1:
+                        ul = nós[2 if j == 1 else 2*j + 1]
+                        ur = nós[2*(j+1) + 1]
+                        dr = Nó(((j + 1) * l, (i - 1) * l))
+                        dl = nós[-2 if j == 1 else -1]
+                        nós.extend([dr])
+                    else:
+                        ul = nós[-2*(n + 1) if j != 1 else -2*(n + 1) - 1]
+                        ur = nós[-2*(n + 1) + 1]
+                        dr = Nó(((j + 1) * l, (i - 1) * l))
+                        dl = nós[-1 if j != 1 else -2]
+                        nós.extend([dr])
+            elementos.append(Elemento([ul, ur, dr, dl]))
+
+    if timed: monitorar("Lista de nós e de elementos da malha criadas", início)
+
+    nós = sorted(nós, reverse=True)
+    if timed: monitorar("Lista de nós ordenada", início)
+
+    return Malha(elementos, nós, True)
+
+def resolva_para(n=2, P=100e6, malha=None, padrão=True, timed=False, método="expansão"):
     "Retorna u e f para uma malha de ordem n e carga aplicada P"
+    início = None
+    if timed: início = default_timer()
+    if timed: monitorar("Começando monitoramento", início)
 
     if malha is None:
-        malha = criar_malha(n)
-        
+        malha = criar_malha(n, timed=timed, início=início)
+
+    if timed: monitorar("Elemento construído", início)
+
     lq    = 1/n
     gsdl  = 2*len(malha.nós)
-    Kes   = dict()
-    
-    K_emq = elemento_de_membrana_quadrada(lq)
 
-    for elemento in malha.elementos:
-        Ke = np.zeros((gsdl, gsdl))
+    if timed: monitorar("Parâmetros iniciais definidos", início)
 
-        índices = np.array([
-                    [2*malha.índice_do_nó(n), 2*malha.índice_do_nó(n) + 1] for n in elemento.nós
-                            ]).flatten()
+    if padrão:
+        K_emq = pickle.load(open("K_emq.b", "rb"))
+    else:
+        K_emq = elemento_de_membrana_quadrada(lq)
+        pickle.dump(K_emq, open("K_emq.b", "wb"))
 
-        for ie in range(len(índices)):
-            for je in range(len(índices)):
-                i = índices[ie]
-                j = índices[je]
+    if timed: monitorar("Matriz de rigidez de emq carregada", início)
 
-                Ke[i][j] = K_emq[ie][je]
 
-        Kes[elemento] = Ke
+    if método == "expansão":
+        Kes = dict()
+        for elemento in malha.elementos:
+            Ke = np.zeros((gsdl, gsdl))
 
-    K = sum(Kes.values())
-    
-    gdl_P = grau_de_liberdade_associado_a_P = (int((2*n + 1)*(n/2 + 1)) - 1)*2 + 1
+            índices = np.array([
+                        [2*malha.índice_do_nó(n), 2*malha.índice_do_nó(n) + 1] for n in elemento.nós
+                                ]).flatten()
 
-    f = np.zeros(gsdl)
-    u = np.zeros(gsdl)
+            for ie in range(len(índices)):
+                for je in range(len(índices)):
+                    i = índices[ie]
+                    j = índices[je]
+
+                    Ke[i][j] = K_emq[ie][je]
+
+            Kes[elemento] = Ke
+
+        K = sum(Kes.values())
+
+    elif método=="compacto":
+        K = np.zeros((gsdl, gsdl))
+
+        índices = dict()
+        for elemento in malha.elementos:
+            índices[elemento] = np.array([[2 * malha.índice_do_nó(n), 2 * malha.índice_do_nó(n) + 1]
+                                          for n in elemento.nós]).flatten()
+
+        for i in range(8):
+            for j in range(8):
+                for e in malha.elementos:
+                    p = índices[e][i]
+                    q = índices[e][j]
+
+                    K[p][q] += K_emq[i][j]
+
+    elif método == "OptV1":
+        from scipy.sparse import csr_matrix
+
+        D  = np.zeros(64*malha.ne)
+        I  = np.zeros(64*malha.ne, dtype="int32")
+        J  = np.zeros(64*malha.ne, dtype="int32")
+        d  = 0
+        for e in range(malha.ne):
+            for i in range(8):
+                for j in range(8):
+                    I[d] = malha.me[i][e]
+                    J[d] = malha.me[j][e]
+                    D[d] = K_emq[i][j]
+                    d += 1
+        K = csr_matrix((D, (I, J)), shape=(gsdl, gsdl)).toarray()
+
+    elif método == "OptV2":
+        from scipy.sparse import csr_matrix
+        ne = malha.ne
+
+        D = np.zeros((64, ne))
+        I = np.zeros((64, ne), dtype="int32")
+        J = np.zeros((64, ne), dtype="int32")
+
+        d = 0
+        for j in range(8):
+            for i in range(8):
+                D[d, :] = np.repeat(K_emq[i][j], ne)
+                I[d, :] = malha.me[i, :]
+                J[d, :] = malha.me[j, :]
+                d += 1
+        K = csr_matrix((D.flat, (I.flat, J.flat)), shape=(gsdl, gsdl)).toarray()
+
+    if timed: monitorar("Formação da matriz de rigidez geral", início)
+
+    f    = np.zeros(gsdl)
+    u    = np.zeros(gsdl)
     u[:] = np.nan
+
+    if timed: monitorar("Vetores u e f iniciados", início)
 
     #Condições de Contorno em u
     for i in range(n + 1):
-        i1 = 2*i*(2*n + 1)
+        try:
+            i1 = 2 * (malha.índice_por_coordenada[(0, 1 - i/(n))])
+        except KeyError:
+            continue
         i2 = i1 + 1
         u[i1:(i2 + 1)] = 0
         f[i1:(i2 + 1)] = np.nan
 
+    if timed: monitorar("Condições de Contorno em u aplicadas", início)
+
     #Condições de Contorno em f
+    gdl_P = grau_de_liberdade_associado_a_P = (malha.índice_por_coordenada[(2, 0.5)]) * 2 + 1
     f[gdl_P] = -P
+
+    if timed: monitorar("Condições de Contorno em f aplicadas", início)
 
     ifc = índices_onde_f_é_conhecido = np.where(~np.isnan(f))[0]
     iuc = índices_onde_u_é_conhecido = np.where(~np.isnan(u))[0]
 
-    Kfc = K[np.ix_(ifc, ifc)]
-    ufc = inv(Kfc) @ f[ifc].T
+    if timed: monitorar("Delimitação das condições de contorno feitas", início)
 
+    Kfc = K[np.ix_(ifc, ifc)]
+    if timed: monitorar("Matriz K fatiada onde f é conhecida", início)
+
+    ufc = solve(Kfc, f[ifc])
+    if timed: monitorar("ufc obtido resolvendo sistema linear", início)
     u[ifc] = ufc
 
-    f = K @ u.T
+    f = K @ u
+    if timed: monitorar("K multiplicada por u para atualizar f", início)
 
-    tolerância = 1e-5
-    f[abs(f) < tolerância] = 0
-
-    return f, u
+    return f, u, malha
 
 if __name__ == "__main__":
-    f, u = resolva_para(n=20)
-    print(np.array_str(np.vstack([f, u]).T, precision=3))
-    print("\n-----------------------------")
-    print("> Resolvendo problema de novo")
-    f, u = resolva_para()
-    print("> Resolvido")
+    from timeit import default_timer
+    from matplotlib import pyplot as plt
+
+    comparar = True
+
+    def tempo_de_execução(f, *args, **kwargs):
+        começo = default_timer()
+        f(*args, **kwargs)
+        return default_timer() - começo
+
+    if comparar:
+        X = range(2, 40, 2)
+        métodos = ["OptV1", "OptV2"]
+        Y_s = [[tempo_de_execução(resolva_para, n, método=método) for n in X]
+               for método in métodos]
+
+        for Y in Y_s:
+            plt.plot(X, Y)
+        plt.legend(métodos)
+        plt.axhline(0.5, c="red", ls="--")
+
+        plt.show()

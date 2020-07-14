@@ -5,6 +5,8 @@ import uuid
 import numpy as np
 from copy import copy
 
+np.random.seed(0)
+
 class Indivíduo:
     
     def __init__(self, gene, nome=""):
@@ -149,8 +151,6 @@ class População:
 
 
 if __name__ == "__main__":
-    np.random.seed(0)
-    
     pop = População()
     pop.avançar_gerações(10)
 
