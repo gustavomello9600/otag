@@ -1,0 +1,18 @@
+Usando Intel MKL
+----------------------------------------------------------
+Malha 74x38
+
+>    0.00000. Começando monitoramento (0.00000)
+>    0.19215. Lista de nós e de elementos da malha criadas (0.19215)
+>    0.20040. Lista de nós ordenada (0.00825)
+>    0.20046. Elemento construído (0.00006)
+>    0.20047. Parâmetros iniciais definidos (0.00001)
+>    0.20284. Matriz de rigidez de emq carregada (0.00237)
+>    1.72406. Formação da matriz de rigidez geral (1.52122)
+>    1.72419. Vetores u e f iniciados (0.00012)
+>    1.77701. Condições de Contorno em u aplicadas (0.05283)
+>    1.77926. Condições de Contorno em f aplicadas (0.00224)
+>    1.77954. Delimitação das condições de contorno feitas (0.00028)
+>    2.63486. Matriz K fatiada onde f é conhecida (0.85532)
+>   15.22974. ufc obtido resolvendo sistema linear (12.59488)
+>   15.34784. K multiplicada por u para atualizar f (0.11810)

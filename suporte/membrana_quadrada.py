@@ -1,10 +1,13 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+import os
 import pickle
 import numpy as np
 from sympy import *
+from math import isclose
 from numpy.linalg import solve
+from timeit import default_timer
 from matplotlib import pyplot as plt
 
 matriz_K_está_pronta = False
@@ -91,13 +94,14 @@ class Nó:
                 return False
         else:
             return False
-        
-    def __eq__(self, other):
-        return (self.x, self.y) == (other.x, other.y)
     
     def __lt__(self, other):
         if self == other or self > other: return False
         else: return True
+
+    def __eq__(self, other):
+        tol = 1e-10
+        return (isclose(self.x, other.x, rel_tol=tol) and isclose(self.y, other.y, rel_tol=tol))
         
     def __str__(self):
         return ("Nó({}, {})".format(self.x, self.y))
@@ -144,32 +148,15 @@ class Elemento:
     
 class Malha:
 
-    def __init__(self, elementos, nós=None, ordenado=False):
-        nós_fornecidos = False if nós is None else True
+    def __init__(self, elementos, nós, me, ordenado=False):
 
         self.elementos = elementos
         self.ne        = len(elementos)
-
-        if nós_fornecidos:
-            self.nós = nós
-        else:
-            self.nós = []
-            for nó in [elemento for elemento in elementos]:
-                if nó not in self.nós:
-                    self.nós.append(nó)
+        self.nós       = nós
+        self.me        = me
 
         if not ordenado:
             self.nós = sorted(self.nós, reverse=True)
-
-        self.me = np.zeros((8, self.ne))
-
-        self.índice_por_coordenada = dict()
-        for e, elemento in enumerate(elementos):
-            for ie, nó in enumerate(elemento.nós):
-                i = self.nós.index(nó)
-                self.me[2*ie][e]      = 2*i
-                self.me[2 *ie + 1][e] = 2*i + 1
-                self.índice_por_coordenada[(nó.x, nó.y)] = i
 
         self.bordas_traçadas = False
     
@@ -222,7 +209,9 @@ def criar_malha(n, timed=False, início=None, tipo="Placa em balanço 2 x 1"):
 
     nós       = []
     elementos = []
+    me        = np.zeros((      8, 2*(n**2)), dtype="int16" )
 
+    e = 0
     for i in range(n, 0, -1):
         for j in range(2 * n):
             if i == n:
@@ -259,16 +248,22 @@ def criar_malha(n, timed=False, início=None, tipo="Placa em balanço 2 x 1"):
                         dr = Nó(((j + 1) * l, (i - 1) * l))
                         dl = nós[-1 if j != 1 else -2]
                         nós.extend([dr])
+
             elementos.append(Elemento([ul, ur, dr, dl]))
+            ie, je   = e // (2*n), e % (2*n)
+            me[:, e] = 2*np.array([[          ie*(2*n + 1) + je,   ie*(2*n + 1) + je + 1,
+                                    (ie + 1)*(2*n + 1) + je + 1, (ie + 1)*(2*n + 1) + je]], dtype="int16"
+                                  ).repeat(2) + np.array([0, 1, 0, 1, 0, 1, 0, 1])
+            e += 1
 
     if timed: monitorar("Lista de nós e de elementos da malha criadas", início)
 
     nós = sorted(nós, reverse=True)
     if timed: monitorar("Lista de nós ordenada", início)
 
-    return Malha(elementos, nós, True)
+    return Malha(elementos, nós, me, ordenado=True)
 
-def resolva_para(n=2, P=100e6, malha=None, padrão=True, timed=False, método="expansão"):
+def resolva_para(n=2, P=100e6, malha=None, padrão=True, timed=False, método="OptV2"):
     "Retorna u e f para uma malha de ordem n e carga aplicada P"
     início = None
     if timed: início = default_timer()
@@ -285,10 +280,10 @@ def resolva_para(n=2, P=100e6, malha=None, padrão=True, timed=False, método="e
     if timed: monitorar("Parâmetros iniciais definidos", início)
 
     if padrão:
-        K_emq = pickle.load(open("K_emq.b", "rb"))
+        K_emq = pickle.load(open(os.path.join(os.path.abspath(__file__), "..", "K_emq.b"), "rb"))
     else:
         K_emq = elemento_de_membrana_quadrada(lq)
-        pickle.dump(K_emq, open("K_emq.b", "wb"))
+        pickle.dump(K_emq, open(os.path.join(os.path.abspath(__file__), "..", "K_emq.b"), "wb"))
 
     if timed: monitorar("Matriz de rigidez de emq carregada", início)
 
@@ -354,13 +349,16 @@ def resolva_para(n=2, P=100e6, malha=None, padrão=True, timed=False, método="e
         J = np.zeros((64, ne), dtype="int32")
 
         d = 0
-        for j in range(8):
-            for i in range(8):
+        for i in range(8):
+            for j in range(8):
                 D[d, :] = np.repeat(K_emq[i][j], ne)
                 I[d, :] = malha.me[i, :]
                 J[d, :] = malha.me[j, :]
                 d += 1
         K = csr_matrix((D.flat, (I.flat, J.flat)), shape=(gsdl, gsdl)).toarray()
+
+    else:
+        raise NotImplementedError
 
     if timed: monitorar("Formação da matriz de rigidez geral", início)
 
@@ -373,7 +371,7 @@ def resolva_para(n=2, P=100e6, malha=None, padrão=True, timed=False, método="e
     #Condições de Contorno em u
     for i in range(n + 1):
         try:
-            i1 = 2 * (malha.índice_por_coordenada[(0, 1 - i/(n))])
+            i1 = 2 * malha.nós.index(Nó((0, 1 - i/n)))
         except KeyError:
             continue
         i2 = i1 + 1
@@ -383,7 +381,7 @@ def resolva_para(n=2, P=100e6, malha=None, padrão=True, timed=False, método="e
     if timed: monitorar("Condições de Contorno em u aplicadas", início)
 
     #Condições de Contorno em f
-    gdl_P = grau_de_liberdade_associado_a_P = (malha.índice_por_coordenada[(2, 0.5)]) * 2 + 1
+    gdl_P = grau_de_liberdade_associado_a_P = malha.nós.index(Nó((2, 0.5)))*2 + 1
     f[gdl_P] = -P
 
     if timed: monitorar("Condições de Contorno em f aplicadas", início)
@@ -406,10 +404,8 @@ def resolva_para(n=2, P=100e6, malha=None, padrão=True, timed=False, método="e
     return f, u, malha
 
 if __name__ == "__main__":
-    from timeit import default_timer
-    from matplotlib import pyplot as plt
 
-    comparar = True
+    comparar = False
 
     def tempo_de_execução(f, *args, **kwargs):
         começo = default_timer()
@@ -428,3 +424,11 @@ if __name__ == "__main__":
         plt.axhline(0.5, c="red", ls="--")
 
         plt.show()
+
+    import sys
+
+    sys.stdout = open("PerformanceOpenBLAS_me_e_npc_otimizado.txt", "w")
+    print("Usando OpenBLAS\n----------------------------------------------------------")
+    print("Malha 74x38\n")
+
+    f, u, malha = resolva_para(38, timed=True)
