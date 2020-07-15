@@ -30,7 +30,7 @@ class Indivíduo:
         return self.adaptação == other.adaptação
     
     #Sobrescrever
-    def construir_fenótipo():
+    def construir_fenótipo(self):
         self.fenótipo = None
 
 
@@ -45,7 +45,7 @@ class População:
         self.geração    = 0
         self.indivíduos = indivíduos
         self.gerações   = [indivíduos]
-        self.n          = len(indivíduos)
+        self.ni         = len(indivíduos)
         self.mutações   = []
 
     def avançar_gerações(self, n):
@@ -102,7 +102,7 @@ class População:
             
         return nova_geração
             
-    #Sobrescrever
+    # Sobrescrever
     def crossover(self, ind1, ind2, i):
         k1, k2 = np.random.randint(1, 8, (2,))
         
@@ -114,7 +114,7 @@ class População:
         return Indivíduo(ind1.gene[:kmin] + ind2.gene[kmin:kmax] + ind1.gene[kmax:],
                          nome="G{}_{}".format(self.geração, i))
     
-    #Sobrescrever
+    # Sobrescrever
     def mutação(self, g):
         for ind in g:
             mutated = False
@@ -127,13 +127,14 @@ class População:
                 ind.adaptação_testada = False
                 self.mutações.append("Indivíduo {} indo para a geração {}".format(
                                      ind.nome, self.geração - 1))
-                
-                
         
-    #Sobrescrever
+    # Sobrescrever
+
+    # Sobrescrever
     def testar_adaptação(self, ind):
         ind.adaptação = sum([int(n)*(2**i) for i, n in enumerate(ind.gene)])
-    
+
+    # Sobrescrever
     def geração_0(self):
         return [Indivíduo("".join([str(b) for b in np.random.randint(0, 2, (8,))]), nome="G0_{}".format(i))
                                                                                           for i in range(10)]
