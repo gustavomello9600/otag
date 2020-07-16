@@ -134,9 +134,10 @@ class População_de_Projetos(População):
         j = 75
         y = 1 - i*l
         elementos_conectados = []
-        nós  = []
-        i_nó = 0
-        índice_por_nó = dict()
+        nós           = []
+        nós_índices   = []
+        i_nó_na_malha          = 0
+        índice_na_malha = dict()
         me  = np.empty((8, 0), dtype="int16")
 
 
@@ -181,16 +182,19 @@ class População_de_Projetos(População):
                 gene_útil[i][j] = 1
 
                 y = 1 - i * l
-                ul, ur, dr, dl = Nó((j * l, y)), Nó(((j + 1) * l, y)), \
-                                 Nó(((j + 1) * l, y - l)), Nó((j * l, y - l))
+                ul, ur, dr, dl = Nó((        j*l,     y)).def_ind((  i,   j)),\
+                                 Nó(((j + 1) * l,     y)).def_ind((  i, j+1)), \
+                                 Nó(((j + 1) * l, y - l)).def_ind((i+1, j+1)), \
+                                 Nó((        j*l, y - l)).def_ind((i+1,   j))
 
                 índices = []
                 for nó in [ul, ur, dr, dl]:
-                    if nó not in nós:
+                    if nó.índice not in nós_índices:
                         nós.append(nó)
-                        índice_por_nó[nó] = i_nó
-                        i_nó += 1
-                    índices.append(índice_por_nó[nó])
+                        nós_índices.append(nó.índice)
+                        índice_na_malha[nó.índice] = i_nó_na_malha
+                        i_nó_na_malha += 1
+                    índices.append(índice_na_malha[nó.índice])
 
                 iul, iur, idr, idl = índices
 
@@ -255,17 +259,20 @@ class População_de_Projetos(População):
                 # Adiciona este elemento à malha
                 gene_útil[i][j] = 1
 
-                y = 1 - i*l
-                ul, ur, dr, dl = Nó((      j*l,     y)), Nó(((j + 1)*l,     y)), \
-                                 Nó(((j + 1)*l, y - l)), Nó((      j*l, y - l))
+                y = 1 - i * l
+                ul, ur, dr, dl = Nó((j * l, y)).def_ind((i, j)), \
+                                 Nó(((j + 1) * l, y)).def_ind((i, j + 1)), \
+                                 Nó(((j + 1) * l, y - l)).def_ind((i + 1, j + 1)), \
+                                 Nó((j * l, y - l)).def_ind((i + 1, j))
 
                 índices = []
                 for nó in [ul, ur, dr, dl]:
-                    if nó not in nós:
+                    if nó.índice not in nós_índices:
                         nós.append(nó)
-                        índice_por_nó[nó] = i_nó
-                        i_nó += 1
-                    índices.append(índice_por_nó[nó])
+                        nós_índices.append(nó.índice)
+                        índice_na_malha[nó.índice] = i_nó_na_malha
+                        i_nó_na_malha += 1
+                    índices.append(índice_na_malha[nó.índice])
 
                 iul, iur, idr, idl = índices
 

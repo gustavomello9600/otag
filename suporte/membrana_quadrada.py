@@ -112,6 +112,10 @@ class Nó:
     
     def __hash__(self):
         return hash((round(self.x, 7), round(self.y, 7)))
+
+    def def_ind(self, índice):
+        self.índice = índice
+        return self
     
     
 class Elemento:
