@@ -16,6 +16,17 @@ class Indivíduo:
             
         self.adaptação         = 0
         self.adaptação_testada = False
+        self.gene_id = None
+
+    def id_do_gene(self):
+        if self.gene_id is None:
+            self.gene_id = self.gerar_id_do_gene()
+
+        return self.gene_id
+
+    # Sobrescrever
+    def gerar_id_do_gene(self):
+        return self.gene
             
     def __repr__(self):
         return "{}: {:.2f} ({}...)".format(self.nome, self.adaptação, (self.gene).__repr__()[:15])
@@ -38,7 +49,7 @@ class População:
     
     genes_testados = dict()
     
-    def __init__(self, indivíduos=None):
+    def __init__(self, indivíduos=None, pm=0.01/100):
         if indivíduos is None:
             indivíduos = self.geração_0()
             
@@ -47,10 +58,13 @@ class População:
         self.gerações   = [indivíduos]
         self.n          = len(indivíduos)
         self.mutações   = []
+        self.pm         = pm
 
     def avançar_gerações(self, n):
         for _ in range(n):
             self.próxima_geração()
+
+        return self
         
     def próxima_geração(self):
         self.geração += 1
@@ -59,9 +73,12 @@ class População:
         nova_geração            = self.reprodução(indivíduos_selecionados)
 
         self.mutação(nova_geração)
+
+        novos_indivíduos = indivíduos_selecionados + nova_geração
+        novos_indivíduos.sort(reverse=True)
         
-        self.gerações.append(nova_geração)
-        self.indivíduos = sorted(nova_geração, reverse=True)
+        self.gerações.append(novos_indivíduos)
+        self.indivíduos    = novos_indivíduos
         
         return self
         
@@ -73,34 +90,25 @@ class População:
         return sorted(self.indivíduos, reverse=True)[:self.n//2]
         
     def conseguir_adaptação(self, ind):
-        if ind.gene in self.genes_testados.keys():
-            ind.adaptação = self.genes_testados[ind.gene]
+        if ind.id_do_gene() in self.genes_testados.keys():
+            ind.adaptação = self.genes_testados[ind.id_do_gene()]
         else:
             self.testar_adaptação(ind)
-            self.genes_testados[ind.gene] = ind.adaptação
-        
-        ind.adaptação_testada = True
+            self.genes_testados[ind.id_do_gene()] = ind.adaptação
         
     def reprodução(self, inds):
-        nova_geração = copy(inds)
+        filhos = []
         
         pesos = np.array([i.adaptação for i in inds])
-        pas   = probabilidades_acumuladas = np.cumsum(pesos)/sum(pesos)
         
-        for _ in range(self.n - len(inds)):
-            p1   = np.random.random()
-            ind1 = inds[np.argmax(pas > p1)]
-            
-            ind2 = ind1
-            while ind1 is ind2:
-                p2   = np.random.random()
-                ind2 = inds[np.argmax(pas > p2)]
+        for k in range(self.n - len(inds)):
+            pais = np.random.choice(inds, size=2, replace=False, p=pesos/(pesos.sum()))
                 
-            ind_filho = self.crossover(ind1, ind2, len(nova_geração) - len(inds))
+            ind_filho = self.crossover(pais[0], pais[1], k + 1)
             self.conseguir_adaptação(ind_filho)
-            nova_geração.append(ind_filho)
+            filhos.append(ind_filho)
             
-        return nova_geração
+        return filhos
             
     #Sobrescrever
     def crossover(self, ind1, ind2, i):
@@ -120,16 +128,14 @@ class População:
             mutated = False
             for i, b in enumerate(ind.gene):
                 p = np.random.random()
-                if p < 0.01:
+                if p < self.pm:
                     mutated = True
                     ind.gene = ind.gene[:i] + ("0" if ind.gene[i] == "1" else "1") + ind.gene[i + 1:]
             if mutated:
                 ind.adaptação_testada = False
                 self.mutações.append("Indivíduo {} indo para a geração {}".format(
                                      ind.nome, self.geração - 1))
-                
-                
-        
+
     #Sobrescrever
     def testar_adaptação(self, ind):
         ind.adaptação = sum([int(n)*(2**i) for i, n in enumerate(ind.gene)])
@@ -139,10 +145,10 @@ class População:
                                                                                           for i in range(10)]
     
     def __repr__(self):
-        return "População de {} indivíduos: {}".format(self.n, self.indivíduos)
+        return "Geração {} de População de {} indivíduos: {}".format(self.geração,self.n, self.indivíduos)
     
     def __str__(self):
-        return ("População de {} indivíduos:\n".format(self.n)
+        return ("População de {} indivíduos em sua geração {}:\n".format(self.n, self.geração)
                 + (self.n *"> {}\n").format(*self.indivíduos)
                 + "---------Mutações---------\n"
                 + "\n".join(self.mutações))

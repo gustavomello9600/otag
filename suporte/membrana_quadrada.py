@@ -110,13 +110,13 @@ class Nó:
         return ("Nó({}, {})".format(self.x, self.y))
     
     def __hash__(self):
-        return hash((self.x, self.y))
+        return hash((round(self.x, 7), round(self.y, 7)))
     
     
 class Elemento:
 
     def __init__(self, nós, tipo="Membrana Quadrada"):
-        self.nós  = tuple(sorted(nós, reverse=True))
+        self.nós  = tuple(nós)
         self.tipo = tipo
         
         if tipo == "Membrana Quadrada":
@@ -130,9 +130,8 @@ class Elemento:
     def traçar_bordas(self):
         if self.tipo == "Membrana Quadrada":
             self.bordas = []
-            ks = [1, 3, 0, 2]
             for i, nó in enumerate(self.nós):
-                k = ks[i]
+                k = i + 1 if i < 3 else 0
                 self.bordas.append((nó, self.nós[k]))
             self.bordas = tuple(self.bordas)
             
@@ -148,15 +147,12 @@ class Elemento:
     
 class Malha:
 
-    def __init__(self, elementos, nós, me, ordenado=False):
+    def __init__(self, elementos, nós, me):
 
         self.elementos = elementos
         self.ne        = len(elementos)
         self.nós       = nós
         self.me        = me
-
-        if not ordenado:
-            self.nós = sorted(self.nós, reverse=True)
 
         self.bordas_traçadas = False
     
@@ -372,7 +368,7 @@ def resolva_para(n=2, P=100e6, malha=None, padrão=True, timed=False, método="O
     for i in range(n + 1):
         try:
             i1 = 2 * malha.nós.index(Nó((0, 1 - i/n)))
-        except KeyError:
+        except ValueError:
             continue
         i2 = i1 + 1
         u[i1:(i2 + 1)] = 0
@@ -427,8 +423,9 @@ if __name__ == "__main__":
 
     import sys
 
-    sys.stdout = open("PerformanceOpenBLAS_me_e_npc_otimizado.txt", "w")
-    print("Usando OpenBLAS\n----------------------------------------------------------")
+    sys.stdout = open("PerformanceIntelMKL_me_e_npc_otimizado.txt", "w")
+    print("Usando Intel MKL"
+          "\n----------------------------------------------------------")
     print("Malha 74x38\n")
 
     f, u, malha = resolva_para(38, timed=True)
