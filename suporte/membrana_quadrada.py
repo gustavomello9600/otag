@@ -6,6 +6,7 @@ import pickle
 import numpy as np
 from sympy import *
 from math import isclose
+from pathlib import Path
 from numpy.linalg import solve
 from timeit import default_timer
 from matplotlib import pyplot as plt
@@ -177,6 +178,8 @@ class Malha:
                 plt.plot(X, Y, "k--", lw = 0.2)
                 
         plt.axvline(x=0, c="black", lw="3")
+        plt.xlim((0, 2))
+        plt.ylim((0, 1))
         ax.set_aspect('equal')
 
         plt.show()
@@ -277,10 +280,10 @@ def resolva_para(n=2, P=100e6, malha=None, padrão=True, timed=False, método="O
     if timed: monitorar("Parâmetros iniciais definidos", início)
 
     if padrão:
-        K_emq = pickle.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "K_emq.b"), "rb"))
+        K_emq = pickle.load(open(os.path.join(Path(__file__).parent, "K_emq.b"), "rb"))
     else:
         K_emq = elemento_de_membrana_quadrada(lq)
-        pickle.dump(K_emq, open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "K_emq.b"), "wb"))
+        pickle.dump(K_emq, open(os.path.join(Path(__file__).parent, "K_emq.b"), "wb"))
 
     if timed: monitorar("Matriz de rigidez de emq carregada", início)
 
@@ -424,7 +427,7 @@ if __name__ == "__main__":
 
     import sys
 
-    sys.stdout = open("PerformanceIntelMKL_me_e_npc_otimizado.txt", "w")
+    #sys.stdout = open("PerformanceIntelMKL_me_e_npc_otimizado.txt", "w")
     print("Usando Intel MKL"
           "\n----------------------------------------------------------")
     print("Malha 74x38\n")
