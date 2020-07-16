@@ -161,6 +161,7 @@ class Malha:
             self.traçar_bordas()
 
         plt.rcParams['figure.dpi'] = 200
+        fig, ax = plt.subplots()
         
         if deslocamento is None: deslocamento = np.zeros(2*len(self.nós))
         
@@ -176,7 +177,7 @@ class Malha:
                 plt.plot(X, Y, "k--", lw = 0.2)
                 
         plt.axvline(x=0, c="black", lw="3")
-        plt.axes().set_aspect("equal")
+        ax.set_aspect('equal')
 
         plt.show()
 
