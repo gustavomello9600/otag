@@ -30,6 +30,8 @@ class Projeto(Indivíduo):
 # Ensina ao Python como trabalhar com Populações de Projetos
 class População_de_Projetos(População):
 
+    alfa_0 = 0.01
+    Dlim   = 0.005
     genes_úteis_testados = dict()
 
     # Ensina a construir os primeiros Indivíduos (Projetos) da População
@@ -62,7 +64,15 @@ class População_de_Projetos(População):
                 elif i == 37:
                     direções.remove("baixo")
 
-                mover_para = choice(direções)
+                l = len(direções)
+                if l == 1:
+                    p = [1]
+                elif l == 2:
+                    p = [0.93, 0.07]
+                else:
+                    p = [0.47, 0.47, 0.06]
+
+                mover_para = np.random.choice(direções, p=p)
                 if mover_para == "esquerda" and j == 0:
                     alcançou_a_borda = True
                 else:
@@ -78,6 +88,23 @@ class População_de_Projetos(População):
             projetos.append(Projeto(gene, "G0_{}".format(k + 1)))
 
         return projetos
+
+
+    # TODO Subdividir o espaço de projeto em formas poligonais rectilíneas
+    # com menos cantos e mais espaços contínuos
+    """
+    def geração_0(self):
+        cantos_superiores = []
+        última_direção = "esquerda"
+        
+        bs = np.random.randint(20)
+        cantos_superiores.append((bs, 76))
+    """
+
+    def próxima_geração(self):
+        self.alfa = self.alfa_0 * (1.001 * (self.geração/10))
+        
+        super(População_de_Projetos, self).próxima_geração()
 
     # Ensina como cruzar os genes dos Indivíduos (Projetos) selecionados para reprodução
     def crossover(self, p1, p2, índice):
@@ -318,12 +345,22 @@ class População_de_Projetos(População):
             if gene_útil.data.tobytes() not in self.genes_úteis_testados:
                 timed = True if ind.nome.endswith("1") else False
 
-                ind.f, ind.u, ind.malha = resolva_para(38, malha=Malha(elementos_conectados, nós, me), timed=timed)
+                ind.f, ind.u, ind.malha = resolva_para(38,
+                                                       P=10e3,
+                                                       malha=Malha(elementos_conectados, nós, me),
+                                                       timed=timed)
 
                 Acon = gene_útil.sum()*(l**2)
                 Ades = ind.gene.sum()*(l**2) - Acon
 
-                ind.adaptação = 1/(Acon + 0.1*Ades)
+                n    = len(nós)
+                Dmax = np.sqrt(np.sum(ind.u.reshape((n, 2))**2, axis=1).max())
+                pena = 0 if Dmax < self.Dlim else self.Dlim - Dmax
+
+                if pena:
+                    print("> Indivíduo {} penalizado: Dmax - Dlim = {:.3e} metros".format(ind.nome, pena))
+
+                ind.adaptação = 1/(Acon + 0.1*Ades + self.alfa*pena)
 
                 print("> {} conectado à borda. Adaptação: {}".format(
                       ind.nome, ind.adaptação))
