@@ -161,7 +161,7 @@ class Malha:
 
         self.bordas_traçadas = False
     
-    def plot(self, deslocamento=None, k=2):
+    def plot(self, deslocamento=None, k=1):
         if not self.bordas_traçadas:
             self.traçar_bordas()
 
@@ -182,8 +182,8 @@ class Malha:
                 plt.plot(X, Y, "k--", lw = 0.2)
                 
         plt.axvline(x=0, c="black", lw="3")
-        plt.xlim((0, 2))
-        plt.ylim((0, 1))
+        plt.xlim((-0.5, 2.5))
+        plt.ylim((-0.5, 1.5))
         ax.set_aspect('equal')
 
         plt.show()
@@ -206,7 +206,7 @@ class Malha:
 
     def índice_do_nó(self, nó):
         return self.nós.index(nó)
-    
+
                 
 def criar_malha(n, timed=False, início=None, tipo="Placa em balanço 2 x 1"):
     l   = 1/n
@@ -265,7 +265,7 @@ def criar_malha(n, timed=False, início=None, tipo="Placa em balanço 2 x 1"):
     nós = sorted(nós, reverse=True)
     if timed: monitorar("Lista de nós ordenada", início)
 
-    return Malha(elementos, nós, me, ordenado=True)
+    return Malha(elementos, nós, me)
 
 def resolva_para(n=2, P=100e6, malha=None, padrão=True, timed=False, método="OptV2"):
     "Retorna u e f para uma malha de ordem n e carga aplicada P"
