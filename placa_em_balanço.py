@@ -346,7 +346,7 @@ class População_de_Projetos(População):
         return Projeto(gene_novo, "G{}_{}".format(self.geração, índice))
 
     def próxima_geração(self):
-        self.alfa = self.alfa_0 * (1.001 * (self.geração / 10))
+        self.alfa = self.alfa_0 * (1.01 ** (self.geração))
 
         super(População_de_Projetos, self).próxima_geração()
 
@@ -392,7 +392,7 @@ class População_de_Projetos(População):
                 if pena:
                     print("> Indivíduo {} penalizado: Dmax - Dlim = {:.3e} metros".format(ind.nome, pena))
 
-                ind.adaptação = 1 / (Acon + 0.1 * Ades + self.alfa * pena)
+                ind.adaptação = 1 / (Acon + 0.4 * Ades + self.alfa * pena)
 
                 print("> {} conectado à borda. Adaptação: {}".format(
                     ind.nome, ind.adaptação))
