@@ -378,7 +378,7 @@ class População_de_Projetos(População):
                 timed = True if ind.nome.endswith("1") else False
 
                 ind.f, ind.u, ind.malha = resolva_para(38,
-                                                       P=10e3,
+                                                       P=100e3,
                                                        malha=Malha(elementos_conectados, nós, me),
                                                        timed=timed)
 
@@ -387,7 +387,7 @@ class População_de_Projetos(População):
 
                 n = len(nós)
                 Dmax = np.sqrt(np.sum(ind.u.reshape((n, 2)) ** 2, axis=1).max())
-                pena = 0 if Dmax < self.Dlim else self.Dlim - Dmax
+                pena = 0 if Dmax < self.Dlim else Dmax - self.Dlim
 
                 if pena:
                     print("> Indivíduo {} penalizado: Dmax - Dlim = {:.3e} metros".format(ind.nome, pena))
