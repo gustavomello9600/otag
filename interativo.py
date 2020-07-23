@@ -4,7 +4,7 @@ import pandas as pd
 from pathlib import Path
 from random import seed, getstate, setstate
 from placa_em_balanço import População_de_Projetos
-from matplotlib.pyplot import imshow, plot, colorbar, show, legend, savefig
+from matplotlib.pyplot import imshow, plot, colorbar, show, legend, clf, savefig
 
 semente = 0
 info_gerações = []
@@ -40,7 +40,7 @@ def salvar_estado(pop):
 def carregar_estado(semente=0, geração=1):
     raiz = Path.cwd()
     pasta_da_semente = "semente_{}".format(semente)
-    pasta_da_geração = "geração_{}".format(pop.geração)
+    pasta_da_geração = "geração_{}".format(geração)
     caminho = raiz / "dados" / pasta_da_semente / pasta_da_geração
 
     backup_da_população = "população.b"
@@ -107,11 +107,11 @@ def ciclo_de_(n, pop):
     filtrar_informações(pop)
     salvar_estado(pop)
 
-def execução_típica(n=100, pop=False, semente=0):
+def execução_típica(n=100, pop=None, sem=0):
     retornar = False
-    if not pop:
+    if pop is None:
         retornar = True
-        mudar_semente(semente)
+        mudar_semente(sem)
         pop = População_de_Projetos()
 
     for k in range(pop.geração, pop.geração + n):
@@ -165,10 +165,11 @@ def salvar_resultado(pop):
 
     imshow(~prj.gene, cmap="hot")
     savefig(caminho / ("gene_sem{}_{}.png".format(sem, prj.nome)), dpi=200)
+    clf()
 
-    prj.malha.plot(proj.u, show=False)
+    prj.malha.plot(prj.u, show=False)
     savefig(caminho / ("malha_sem{}_{}.png".format(sem, prj.nome)), dpi=200)
-
+    clf()
 
 
 
