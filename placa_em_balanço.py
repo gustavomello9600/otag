@@ -2,8 +2,11 @@
 # coding: utf-8
 
 import numpy as np
+import scipy.cluster.hierarchy as sch
+
 from copy import copy
 from random import choice, seed, shuffle
+from scipy.stats import pearsonr as correlação
 
 from matplotlib import pyplot as plt
 
@@ -238,11 +241,19 @@ def determinar_gene_útil(gene, l):
 
     return gene_útil, borda_alcançada, elementos_conectados, nós, me
 
+def único(X):
+    _, índice = np.unique(X, return_index=True)
+    return X[np.sort(índice)]
+
 
 class Projeto(Indivíduo):
     
     def gerar_id_do_gene(self):
         return self.gene.data.tobytes()
+
+    def definir_espécie(self, espécie):
+        self.espécie = espécie
+
 
 # Ensina ao Python como trabalhar com Populações de Projetos
 class População_de_Projetos(População):
@@ -250,6 +261,10 @@ class População_de_Projetos(População):
     alfa_0 = 10
     Dlim = 0.005
     genes_úteis_testados = dict()
+
+    def __init__(self, indivíduos=None, pm=0.01/100):
+        super(População_de_Projetos, self).__init__(indivíduos=indivíduos, pm=pm)
+        self.perfis_das_espécies = [None]
 
     # Ensina a construir os primeiros Indivíduos (Projetos) da População
     def geração_0(self):
@@ -399,6 +414,27 @@ class População_de_Projetos(População):
             else:
                 ind.adaptação = self.genes_úteis_testados[gene_útil.data.tobytes()]
                 print("> Adaptação de {} já era conhecida pelo seu gene útil".format(ind.nome))
+
+    def seleção_natural(self):
+        indivíduos_selecionados = super().seleção_natural()
+
+        if len(self.perfis_das_espécies) == 1:
+            genes = np.array([ind.gene.flatten() for ind in indivíduos_selecionados])
+
+            rede_de_conexões   = sch.linkage(genes, metric="correlation")
+            espécies_dos_genes = sch.fcluster(rede_de_conexões, t=0.3, criterion="distance")
+            espécies_iniciais  = único(espécies_dos_genes)
+
+            self.perfis_das_espécies = []
+            for espécie in espécies_iniciais:
+                genes_da_espécie  = genes[espécies_dos_genes == espécie, :]
+                perfil_da_espécie = np.mean(genes_da_espécie, axis=0)
+                self.perfis_das_espécies.append(perfil_da_espécie)
+
+            for i in range(len(indivíduos_selecionados)):
+                indivíduos_selecionados[i].definir_espécie(espécies_dos_genes[i])
+
+        return indivíduos_selecionados
 
 if __name__ == "__main__":
     seed(0)
