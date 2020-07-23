@@ -1,9 +1,10 @@
 import pickle
 import numpy as np
+import pandas as pd
 from pathlib import Path
 from random import seed, getstate, setstate
 from placa_em_balanço import População_de_Projetos
-from matplotlib.pyplot import imshow, plot, colorbar, show, legend
+from matplotlib.pyplot import imshow, plot, colorbar, show, legend, savefig
 
 semente = 0
 info_gerações = []
@@ -126,5 +127,49 @@ def execução_típica(n=100, pop=False, semente=0):
 
     if retornar:
         return pop
+
+def salvar_resultado(pop):
+    salvar_estado(pop)
+
+    caminho = Path.cwd() / "resultados"
+
+    try:
+        tabela = pd.read_csv(caminho / "comparação_de_resultados.csv")
+    except FileNotFoundError:
+        tabela = pd.DataFrame(columns=["Semente", "Gerações", "Indivíduo_mais_apto",
+                                       "Adaptação", "Índice_de_Convergência", "alfa_0", "e"])
+
+    sem  = semente
+    ger  = pop.geração
+    prj  = pop.indivíduos[0]
+    ima  = prj.nome
+    adpt = prj.adaptação
+    alfa = pop.alfa_0
+    edes = 0.4
+
+    conv   = sum([ind.gene for ind in pop.indivíduos]) / 100
+    m_conv = np.vectorize(lambda x: 4 * (x ** 2) - 4 * x + 1)
+    idc    = sum(m_conv(conv).flat) / len(conv.flat)
+
+    linha = pd.DataFrame({"Semente":                [sem],
+                          "Gerações":               [ger],
+                          "Indivíduo_mais_apto":    [ima],
+                          "Adaptação":             [adpt],
+                          "Índice_de_Convergência": [idc],
+                          "alfa_0":                [alfa],
+                          "e":                     [edes]})
+
+    tabela = tabela.append(linha)
+    tabela.drop_duplicates(inplace=True)
+    tabela.to_csv(caminho / "comparação_de_resultados.csv", index=False)
+
+    imshow(~prj.gene, cmap="hot")
+    savefig(caminho / ("gene_sem{}_{}.png".format(sem, prj.nome)), dpi=200)
+
+    prj.malha.plot(proj.u, show=False)
+    savefig(caminho / ("malha_sem{}_{}.png".format(sem, prj.nome)), dpi=200)
+
+
+
 
 mudar_semente(semente)

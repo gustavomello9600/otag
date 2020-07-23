@@ -247,7 +247,7 @@ class Projeto(Indivíduo):
 # Ensina ao Python como trabalhar com Populações de Projetos
 class População_de_Projetos(População):
 
-    alfa_0 = 0.01
+    alfa_0 = 10
     Dlim = 0.005
     genes_úteis_testados = dict()
 

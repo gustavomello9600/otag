@@ -161,7 +161,7 @@ class Malha:
 
         self.bordas_traçadas = False
     
-    def plot(self, deslocamento=None, k=1):
+    def plot(self, deslocamento=None, k=1, show=True):
         if not self.bordas_traçadas:
             self.traçar_bordas()
 
@@ -186,7 +186,8 @@ class Malha:
         plt.ylim((-0.5, 1.5))
         ax.set_aspect('equal')
 
-        plt.show()
+        if show:
+            plt.show()
 
     def traçar_bordas(self):
 
