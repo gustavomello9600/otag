@@ -255,7 +255,6 @@ class Projeto(Indivíduo):
         self.espécie = espécie
 
 
-# Ensina ao Python como trabalhar com Populações de Projetos
 class População_de_Projetos(População):
 
     alfa_0 = 10
@@ -264,7 +263,7 @@ class População_de_Projetos(População):
 
     def __init__(self, indivíduos=None, pm=0.01/100):
         super(População_de_Projetos, self).__init__(indivíduos=indivíduos, pm=pm)
-        self.perfis_das_espécies = [None]
+        self.perfis_das_espécies = dict()
 
     # Ensina a construir os primeiros Indivíduos (Projetos) da População
     def geração_0(self):
@@ -416,9 +415,13 @@ class População_de_Projetos(População):
                 print("> Adaptação de {} já era conhecida pelo seu gene útil".format(ind.nome))
 
     def seleção_natural(self):
-        indivíduos_selecionados = super().seleção_natural()
+        for ind in self.indivíduos:
+            if not ind.adaptação_testada:
+                self.conseguir_adaptação(ind)
 
-        if len(self.perfis_das_espécies) == 1:
+        if self.perfis_das_espécies is None:
+            indivíduos_selecionados = sorted(self.indivíduos, reverse=True)[:self.n//2]
+
             genes = np.array([ind.gene.flatten() for ind in indivíduos_selecionados])
 
             rede_de_conexões   = sch.linkage(genes, metric="correlation")
@@ -429,10 +432,12 @@ class População_de_Projetos(População):
             for espécie in espécies_iniciais:
                 genes_da_espécie  = genes[espécies_dos_genes == espécie, :]
                 perfil_da_espécie = np.mean(genes_da_espécie, axis=0)
-                self.perfis_das_espécies.append(perfil_da_espécie)
+                self.perfis_das_espécies[espécie] = perfil_da_espécie
 
             for i in range(len(indivíduos_selecionados)):
                 indivíduos_selecionados[i].definir_espécie(espécies_dos_genes[i])
+
+        indivíduos_selecionados = sorted(self.indivíduos, reverse=True)[:self.n // 2]
 
         return indivíduos_selecionados
 
