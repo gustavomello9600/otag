@@ -9,6 +9,11 @@ from matplotlib.pyplot import imshow, plot, colorbar, show, legend, clf, savefig
 semente = 0
 info_gerações = []
 
+def rodar_teste(n=1):
+    mudar_semente(0)
+    pop = População_de_Projetos()
+    pop.avançar_gerações(n)
+
 def mudar_semente(sem):
     global semente
 

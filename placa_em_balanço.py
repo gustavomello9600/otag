@@ -6,244 +6,9 @@ import scipy.cluster.hierarchy as sch
 
 from copy import copy
 from random import choice, seed, shuffle
-from scipy.stats import pearsonr as correlação
 
-from matplotlib import pyplot as plt
-
-# Importa os objetos necessários para discretizar o problema 
-from suporte.membrana_quadrada import Nó, Elemento, Malha
-
-# Importa a função que retorna os vetores de deslocamento $\vec{u}$ e o campo 
-# de forças $\vec{v}$ para uma dada malha, com carga P e refinamento de ordem n
-from suporte.membrana_quadrada import resolva_para
-
-# Importa o objeto base do algoritmo genético
 from suporte.algoritmo_genético import Indivíduo, População
-
-
-virar_bit = np.vectorize(lambda b: 1 - b)
-
-def gerar_ks(n=38, t=4, f=7, dividir_ao_meio=False):
-    espaços_livres = n - f*t
-    if espaços_livres <= 0:
-        raise ValueError("Impossível dividir {} partes em {} fatias com {} como tamanho mínimo".format(n, f, t))
-
-    distribuição_de_espaços_livres = []
-    for _ in range(f):
-        espaço_extra = choice(list(range(espaços_livres + 1)))
-        espaços_livres -= espaço_extra
-        distribuição_de_espaços_livres.append(espaço_extra)
-    shuffle(distribuição_de_espaços_livres)
-
-    if espaços_livres > 0:
-        distribuição_de_espaços_livres[-1] += espaços_livres
-
-    ks = np.cumsum([0] + list(np.array(f*[t]) + np.array(distribuição_de_espaços_livres)))
-
-    if dividir_ao_meio:
-        for i, k in enumerate(ks):
-            if k >= n/2:
-                if k == n/2:
-                    break
-                ks[i - 1] = n/2
-                j = i
-                while ks[j] - ks[j - 1] < t:
-                    ks[j] += t - (ks[j] - ks[j - 1])
-                    if j == len(ks) - 1:
-                        j = 1
-                    else:
-                        j += 1
-                break
-
-    return ks
-
-def determinar_gene_útil(gene, l):
-    gene_útil = np.zeros((38, 76))
-
-    i = 19
-    j = 75
-    y = 1 - i * l
-    elementos_conectados = []
-    nós = []
-    nós_índices = []
-    i_nó_na_malha = 0
-    índice_na_malha = dict()
-    me = np.empty((8, 0), dtype="int16")
-
-    buscando = True
-    possíveis_ramificações = []
-    descida = True
-    subida = False
-    último_movimento = "esquerda"
-    borda_alcançada = False
-
-    while buscando:
-
-        # busca vertical
-        partida = (i, j)
-
-        # começar descida
-        while descida:
-
-            # consigo descer mais?
-            if i != 37:
-                abaixo = gene[i + 1][j]
-                descida = abaixo
-            else:
-                descida = False
-
-            # há ramificações possíveis aqui do lado?
-            if j != 75 and último_movimento != "esquerda":
-                direita = gene[i][j + 1]
-                if direita and not gene_útil[i][j + 1]:
-                    possíveis_ramificações.append((i, j + 1, "direita"))
-
-            if j == 0:
-                borda_alcançada = True
-
-            if j != 0 and último_movimento != "direita":
-                esquerda = gene[i][j - 1]
-                if esquerda and not gene_útil[i][j - 1]:
-                    possíveis_ramificações.append((i, j - 1, "esquerda"))
-
-            # Adiciona este elemento à malha
-
-            gene_útil[i][j] = 1
-
-            y = 1 - i * l
-            ul, ur, dr, dl = Nó((j * l, y)).def_ind((i, j)), \
-                             Nó(((j + 1) * l, y)).def_ind((i, j + 1)), \
-                             Nó(((j + 1) * l, y - l)).def_ind((i + 1, j + 1)), \
-                             Nó((j * l, y - l)).def_ind((i + 1, j))
-
-            índices = []
-            for nó in [ul, ur, dr, dl]:
-                if nó.índice not in nós_índices:
-                    nós.append(nó)
-                    nós_índices.append(nó.índice)
-                    índice_na_malha[nó.índice] = i_nó_na_malha
-                    i_nó_na_malha += 1
-                índices.append(índice_na_malha[nó.índice])
-
-            iul, iur, idr, idl = índices
-
-            me = np.append(me, np.array([[2 * iul],
-                                         [2 * iul + 1],
-                                         [2 * iur],
-                                         [2 * iur + 1],
-                                         [2 * idr],
-                                         [2 * idr + 1],
-                                         [2 * idl],
-                                         [2 * idl + 1]],
-                                        dtype="int16"), axis=1)
-
-            elementos_conectados.append(Elemento([ul, ur, dr, dl]))
-
-            # Remove a coordenada das possíveis novas ramificações
-            try:
-                possíveis_ramificações.remove((i, j, "esquerda"))
-            except ValueError:
-                try:
-                    possíveis_ramificações.remove((i, j, "direita"))
-                except ValueError:
-                    pass
-
-            # Decide se continua descendo ou se passa a subir
-            if descida:
-                i = i + 1
-                último_movimento = "baixo"
-            else:
-                if partida[0] != 0:
-                    subida = gene[partida[0] - 1][partida[1]]
-                else:
-                    subida = False
-
-                if subida:
-                    i = partida[0] - 1
-
-        # começar subida
-        while subida:
-
-            # consigo subir mais?
-            if i != 0:
-                acima = gene[i - 1][j]
-                subida = acima
-            else:
-                subida = False
-
-            # há ramificações possíveis aqui do lado?
-            if j != 75 and último_movimento != "esquerda":
-                direita = gene[i][j + 1]
-                if direita and not gene_útil[i][j + 1]:
-                    possíveis_ramificações.append((i, j + 1, "direita"))
-
-            if j == 0:
-                borda_alcançada = True
-
-            if j != 0 and último_movimento != "direita":
-                esquerda = gene[i][j - 1]
-                if esquerda and not gene_útil[i][j - 1]:
-                    possíveis_ramificações.append((i, j - 1, "esquerda"))
-
-            # Adiciona este elemento à malha
-            gene_útil[i][j] = 1
-
-            y = 1 - i * l
-            ul, ur, dr, dl = Nó((j * l, y)).def_ind((i, j)), \
-                             Nó(((j + 1) * l, y)).def_ind((i, j + 1)), \
-                             Nó(((j + 1) * l, y - l)).def_ind((i + 1, j + 1)), \
-                             Nó((j * l, y - l)).def_ind((i + 1, j))
-
-            índices = []
-            for nó in [ul, ur, dr, dl]:
-                if nó.índice not in nós_índices:
-                    nós.append(nó)
-                    nós_índices.append(nó.índice)
-                    índice_na_malha[nó.índice] = i_nó_na_malha
-                    i_nó_na_malha += 1
-                índices.append(índice_na_malha[nó.índice])
-
-            iul, iur, idr, idl = índices
-
-            me = np.append(me, np.array([[2 * iul],
-                                         [2 * iul + 1],
-                                         [2 * iur],
-                                         [2 * iur + 1],
-                                         [2 * idr],
-                                         [2 * idr + 1],
-                                         [2 * idl],
-                                         [2 * idl + 1]],
-                                        dtype="int16"), axis=1)
-
-            elementos_conectados.append(Elemento([ul, ur, dr, dl]))
-
-            # Remove a coordenada das possíveis novas ramificações
-            try:
-                possíveis_ramificações.remove((i, j, "esquerda"))
-            except ValueError:
-                try:
-                    possíveis_ramificações.remove((i, j, "direita"))
-                except ValueError:
-                    pass
-
-            # Decide se continua descendo ou se passa a subir
-            if subida:
-                i = i - 1
-                último_movimento = "cima"
-
-        if len(possíveis_ramificações) > 0:
-            i, j, último_movimento = possíveis_ramificações.pop(-1)
-            descida = True
-            subida = False
-
-        else:
-            buscando = False
-
-    return gene_útil, borda_alcançada, elementos_conectados, nós, me
-
-def único(X):
-    _, índice = np.unique(X, return_index=True)
-    return X[np.sort(índice)]
+from suporte.membrana_quadrada import Nó, Elemento, Malha, resolva_para
 
 
 class Projeto(Indivíduo):
@@ -271,8 +36,8 @@ class População_de_Projetos(População):
         for k in range(100):
             grafo = np.random.choice((True, False), (7, 14))
 
-            kis = gerar_ks(n=38, t=4, f= 7, dividir_ao_meio=True)
-            kjs = gerar_ks(n=76, t=4, f=14, dividir_ao_meio=False)
+            kis = fatiar_intervalo(c=38, t=4, f= 7, dividir_ao_meio=True)
+            kjs = fatiar_intervalo(c=76, t=4, f=14, dividir_ao_meio=False)
 
             I = []
             J = []
@@ -441,10 +206,296 @@ class População_de_Projetos(População):
 
         return indivíduos_selecionados
 
-if __name__ == "__main__":
-    seed(0)
-    np.random.seed(0)
-    from matplotlib import pyplot as plt
 
-    pop = População_de_Projetos()
-    pop.próxima_geração()
+# Bloco de Funções Auxiliares
+# ---------------------------
+
+virar_bit = np.vectorize(lambda b: 1 - b)
+
+def único(X):
+    """Retorna os valores únicos da lista X de forma ordenada"""
+    _, índice = np.unique(X, return_index=True)
+    return X[np.sort(índice)]
+
+def fatiar_intervalo(c=38, t=4, f=7, dividir_ao_meio=False):
+    """
+    Fatia aleatoriamente um intervalo de comprimento c em f fatias (ou subintervalos) de comprimento mínimo t
+    e retorna uma lista com os índices correspondentes aos pontos de corte.
+
+    Argumentos
+    ----------
+    c              : int  = Comprimento do intervalo original
+    t              : int  = Espessura mínima
+    f              : int  = Número de fatias
+    dividir_ao_meio: bool = Determina se é obrigatório dividir o intervalo de comprimento c na posição c // 2
+
+    Retorna
+    -------
+    ks             : list = Lista de índices dos pontos de corte
+    """
+
+    # Calcula a folga do intervalo para a divisão esperada
+    folga = c - f*t
+    if folga <= 0:
+        raise ValueError("Impossível dividir intervalo de comprimento {}"
+                         " em {} fatias com {} de comprimento mínimo".format(c, f, t))
+
+    # Calcula os índices como o resultado da soma cumulativa do vetor que contém o comprimento de cada
+    # subintervalo tomado como o comprimento mínimo somado a uma distribuição aleatória da folga
+    ks = np.cumsum(np.array(f*[t]) + np.array(distribuir_no_intervalo(folga, f)))
+
+    # Corrige a divisão quando se deseja que haja um corte em c // 2
+    if dividir_ao_meio:
+        for i, k in enumerate(ks):
+            if k >= c/2:
+                if k == c/2:
+                    break
+                ks[i - 1] = c / 2
+                j = i
+                while ks[j] - ks[j - 1] < t:
+                    ks[j] += t - (ks[j] - ks[j - 1])
+                    if j == len(ks) - 1:
+                        j = 1
+                    else:
+                        j += 1
+                break
+
+    return ks
+
+def distribuir_no_intervalo(folga, fatias):
+    """
+    Distribui a folga aleatoriamente dentre as fatias
+
+    Argumentos
+    ----------
+    folga       : int  = Tamanho da folga
+    fatias      : int  = Número de fatias
+
+    Retorna
+    -------
+    distribuição: list = Lista cujas posições contém a porção de folga que o intervalo correspondente recebeu
+    """
+
+    distribuição = []
+    for _ in range(fatias):
+        espaço_extra = choice(list(range(folga + 1)))
+        folga -= espaço_extra
+        distribuição.append(espaço_extra)
+
+    if folga > 0:
+        distribuição[-1] += folga
+
+    shuffle(distribuição)
+    return distribuição
+
+def determinar_gene_útil(gene, l):
+    """
+    Executa um algoritmo de busca responsável por determinar, para um certo gene cuja expressão fenotípica é dada
+    por uma malha de elementos quadrados de lado l, a maior porção contínua de matéria satisfazendo as restrições do
+    problema, isto é, estar conectada simultaneamente ao ponto de aplicação da força e à borda.
+
+    Também cuida de inicializar a malha correspondente à expressão fenotípica do gene e seus respectivos elementos e
+    nós. Embora ter uma função que lide com tantas operações ao mesmo tempo não seja o padrão de programação
+    recomendável na maioria dos casos, aqui se justifica pelo ganho em performance.
+
+    Argumentos
+    ----------
+    gene           : np.array((38, 76)) = Matriz binária que carrega o código genético
+    l              : int                = Comprimento do lado do elemento de membrana quadrado
+
+    Retorna
+    -------
+    gene_útil      : np.array((38, 76)) = Matriz binária que carrega a porção do gene que forma o fenótipo
+    borda_alcançada: bool               = O fenótipo se estende desde o ponto de aplicação da carga até a borda?
+    elementos      : list               = Lista de Elementos que compõem a malha
+    nós            : list               = Lista de Nós que compõem a malha
+    me             : np.array(( 8, ne)) = Matriz de correspondência entre os índices locais e globais de cada grau
+                                           de liberdade (gsdl = graus de liberdade)
+    """
+    gene_útil = np.zeros((38, 76))
+
+    # Define a posição inicial do algoritmo de busca
+    i = 19
+    j = 75
+
+    elementos = []
+    nós       = []
+    me        = np.empty((8, 0), dtype="int16")
+
+    # Inicializa listas auxiliares que ajudam a manter curso dos índices dos nós
+    nós_índices = []
+    i_nó_na_malha = 0
+    índice_na_malha = dict()
+
+    # Inicializa parâmetros do algoritmo de busca
+    buscando = True
+    possíveis_ramificações = []
+    descida = True
+    subida = False
+    último_movimento = "esquerda"
+    borda_alcançada = False
+
+    # Executa o algoritmo de busca
+    while buscando:
+
+        # busca vertical
+        partida = (i, j)
+
+        # começar descida
+        while descida:
+
+            # consigo descer mais?
+            if i != 37:
+                abaixo = gene[i + 1][j]
+                descida = abaixo
+            else:
+                descida = False
+
+            # há ramificações possíveis aqui do lado?
+            if j != 75 and último_movimento != "esquerda":
+                direita = gene[i][j + 1]
+                if direita and not gene_útil[i][j + 1]:
+                    possíveis_ramificações.append((i, j + 1, "direita"))
+
+            if j == 0:
+                borda_alcançada = True
+
+            if j != 0 and último_movimento != "direita":
+                esquerda = gene[i][j - 1]
+                if esquerda and not gene_útil[i][j - 1]:
+                    possíveis_ramificações.append((i, j - 1, "esquerda"))
+
+            # Adiciona este elemento à malha
+
+            gene_útil[i][j] = 1
+
+            y = 1 - i * l
+            ul, ur, dr, dl = Nó((j * l, y)).def_ind((i, j)), \
+                             Nó(((j + 1) * l, y)).def_ind((i, j + 1)), \
+                             Nó(((j + 1) * l, y - l)).def_ind((i + 1, j + 1)), \
+                             Nó((j * l, y - l)).def_ind((i + 1, j))
+
+            índices = []
+            for nó in [ul, ur, dr, dl]:
+                if nó.índice not in nós_índices:
+                    nós.append(nó)
+                    nós_índices.append(nó.índice)
+                    índice_na_malha[nó.índice] = i_nó_na_malha
+                    i_nó_na_malha += 1
+                índices.append(índice_na_malha[nó.índice])
+
+            iul, iur, idr, idl = índices
+
+            me = np.append(me, np.array([[2 * iul],
+                                         [2 * iul + 1],
+                                         [2 * iur],
+                                         [2 * iur + 1],
+                                         [2 * idr],
+                                         [2 * idr + 1],
+                                         [2 * idl],
+                                         [2 * idl + 1]],
+                                        dtype="int16"), axis=1)
+
+            elementos.append(Elemento([ul, ur, dr, dl]))
+
+            # Remove a coordenada das possíveis novas ramificações
+            try:
+                possíveis_ramificações.remove((i, j, "esquerda"))
+            except ValueError:
+                try:
+                    possíveis_ramificações.remove((i, j, "direita"))
+                except ValueError:
+                    pass
+
+            # Decide se continua descendo ou se passa a subir
+            if descida:
+                i = i + 1
+                último_movimento = "baixo"
+            else:
+                if partida[0] != 0:
+                    subida = gene[partida[0] - 1][partida[1]]
+                else:
+                    subida = False
+
+                if subida:
+                    i = partida[0] - 1
+
+        # começar subida
+        while subida:
+
+            # consigo subir mais?
+            if i != 0:
+                acima = gene[i - 1][j]
+                subida = acima
+            else:
+                subida = False
+
+            # há ramificações possíveis aqui do lado?
+            if j != 75 and último_movimento != "esquerda":
+                direita = gene[i][j + 1]
+                if direita and not gene_útil[i][j + 1]:
+                    possíveis_ramificações.append((i, j + 1, "direita"))
+
+            if j == 0:
+                borda_alcançada = True
+
+            if j != 0 and último_movimento != "direita":
+                esquerda = gene[i][j - 1]
+                if esquerda and not gene_útil[i][j - 1]:
+                    possíveis_ramificações.append((i, j - 1, "esquerda"))
+
+            # Adiciona este elemento à malha
+            gene_útil[i][j] = 1
+
+            y = 1 - i * l
+            ul, ur, dr, dl = Nó((j * l, y)).def_ind((i, j)), \
+                             Nó(((j + 1) * l, y)).def_ind((i, j + 1)), \
+                             Nó(((j + 1) * l, y - l)).def_ind((i + 1, j + 1)), \
+                             Nó((j * l, y - l)).def_ind((i + 1, j))
+
+            índices = []
+            for nó in [ul, ur, dr, dl]:
+                if nó.índice not in nós_índices:
+                    nós.append(nó)
+                    nós_índices.append(nó.índice)
+                    índice_na_malha[nó.índice] = i_nó_na_malha
+                    i_nó_na_malha += 1
+                índices.append(índice_na_malha[nó.índice])
+
+            iul, iur, idr, idl = índices
+
+            me = np.append(me, np.array([[2 * iul],
+                                         [2 * iul + 1],
+                                         [2 * iur],
+                                         [2 * iur + 1],
+                                         [2 * idr],
+                                         [2 * idr + 1],
+                                         [2 * idl],
+                                         [2 * idl + 1]],
+                                        dtype="int16"), axis=1)
+
+            elementos.append(Elemento([ul, ur, dr, dl]))
+
+            # Remove a coordenada das possíveis novas ramificações
+            try:
+                possíveis_ramificações.remove((i, j, "esquerda"))
+            except ValueError:
+                try:
+                    possíveis_ramificações.remove((i, j, "direita"))
+                except ValueError:
+                    pass
+
+            # Decide se continua descendo ou se passa a subir
+            if subida:
+                i = i - 1
+                último_movimento = "cima"
+
+        if len(possíveis_ramificações) > 0:
+            i, j, último_movimento = possíveis_ramificações.pop(-1)
+            descida = True
+            subida = False
+
+        else:
+            buscando = False
+
+    return gene_útil, borda_alcançada, elementos, nós, me
