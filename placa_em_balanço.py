@@ -162,7 +162,7 @@ class PopulaçãoDeProjetos(População):
 
         # Calcula os índices como o resultado da soma cumulativa do vetor que contém o comprimento de cada
         # subintervalo tomado como o comprimento mínimo somado a uma distribuição aleatória da folga
-        ks = np.cumsum(np.array(f * [t]) + np.array(self.distribuir(folga, f)))
+        ks = np.cumsum([0] + list(np.array(f * [t]) + np.array(self.distribuir(folga, f))))
 
         # Corrige a divisão quando se deseja que haja um corte em c // 2
         if dividir_ao_meio:
