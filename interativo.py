@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from random import seed, getstate, setstate
-from placa_em_balanço import População_de_Projetos
+from placa_em_balanço import PopulaçãoDeProjetos
 from matplotlib.pyplot import imshow, plot, colorbar, show, legend, clf, savefig
 
 semente = 0
@@ -11,7 +11,7 @@ info_gerações = []
 
 def rodar_teste(n=1):
     mudar_semente(0)
-    pop = População_de_Projetos()
+    pop = PopulaçãoDeProjetos()
     pop.avançar_gerações(n)
 
 def mudar_semente(sem):
@@ -117,7 +117,7 @@ def execução_típica(n=100, pop=None, sem=0):
     if pop is None:
         retornar = True
         mudar_semente(sem)
-        pop = População_de_Projetos()
+        pop = PopulaçãoDeProjetos()
 
     for k in range(pop.geração, pop.geração + n):
         pop.próxima_geração()
