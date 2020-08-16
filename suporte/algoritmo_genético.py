@@ -1,35 +1,53 @@
-#!/usr/bin/env python
-# coding: utf-8
+"""
+Fornece a estrutura de classes básicas para executar um algoritmo genético.
+
+CLASSES
+-------
+Indivíduo
+    Classe de objetos que carregam genes, elementos fenotípicos e valores de adaptação.
+População
+    Classe de objetos que agregam Indivíduos e definem sobre eles operadores genéticos.
+"""
 
 import uuid
+
 import numpy as np
-from copy import copy
+
 
 class Indivíduo:
+    """
+    Classe de objetos que carregam genes, elementos fenotípicos e valores de adaptação.
+
+    São definidas operações de comparação baseadas nos valores de adaptação e um método de representação que traz
+    seus nomes, suas adaptações e representações curtas de seus genes.
+
+    ATRIBUTOS
+    ---------
+    nome             : str    -- Identificador do indivíduo. Normalmente o situa numa população.
+    adaptação        : Number -- Valor que qualifica seu gene em um determinado ambiente/problema.
+    adaptação_testada: bool   -- Verdadeiro se já foi determinada e falso caso contrário.
+    """
     
-    def __init__(self, gene, nome=""):
+    def __init__(self, gene, nome=None):
         self.gene = gene
-        if nome == "":
-            self.nome = str(uuid.uuid4())[:4]
+        if nome is None:
+            self.nome = self.gerar_nome_aleatório()
         else:
             self.nome = nome
             
         self.adaptação         = 0
         self.adaptação_testada = False
-        self.gene_id = None
+        self.id_do_gene        = self.gerar_id_do_gene()
 
-    def id_do_gene(self):
-        if self.gene_id is None:
-            self.gene_id = self.gerar_id_do_gene()
+    def gerar_nome_aleatório(self):
+        """Retorna uma string identificadora de 4 caracteres aleatórios"""
+        return str(uuid.uuid4())[:4]
 
-        return self.gene_id
-
-    # Sobrescrever
     def gerar_id_do_gene(self):
-        return self.gene
+        pass
             
     def __repr__(self):
-        return "{}: {:.2f} ({}...)".format(self.nome, self.adaptação, (self.gene).__repr__()[:15])
+        return f"{self.nome}: {self.adaptação:.2f} ({self.gene.__repr__()[:15]}...)"
     
     def __gt__(self, other):
         return self.adaptação  > other.adaptação
@@ -39,26 +57,42 @@ class Indivíduo:
     
     def __eq__(self, other):
         return self.adaptação == other.adaptação
-    
-    #Sobrescrever
-    def construir_fenótipo():
-        self.fenótipo = None
 
 
 class População:
+    """
+    Classe de objetos que agregam Indivíduos e definem sobre eles operadores genéticos.
+
+    Uma População implementa condições específicas de teste e combinação de indivíduos descrita pelos seus métodos.
+    É representada pelo rankind de adaptação de seus indivíduos e por uma lista das suas últimas mutações.
+
+    ATRIBUTOS (da classe)
+    ---------------------
+    genes_testados        : dict                 -- Cache de valores de adaptação de genes já testados
+
+    ATRIBUTOS (dos objetos)
+    -----------------------
+    probabilidade_de_mutar: float                -- Chance base de um bit de gene virar em decorrência de uma mutação
+    indivíduos            : List[Indivíduo]      -- Carrega os indivíduos da geração corrente
+    gerações              : List[List[Indivíduo] -- Carrega históricos de cada geração. Limpa-se e se sumariza durante a
+                                                    execução do código com soluções específicas.
+    mutações              : List[str]            -- Histórico de mutações mais recentes.
+    n_da_geração          : int                  -- Número identificador da geração corrente
+    n_de_indivíduos       : int                  -- Quantidade de indivíduos da geração corrente
+    """
     
     genes_testados = dict()
     
-    def __init__(self, indivíduos=None, pm=0.01/100):
+    def __init__(self, indivíduos=None, probabilidade_de_mutar=0.01/100):
         if indivíduos is None:
             indivíduos = self.geração_0()
             
-        self.geração    = 0
-        self.indivíduos = indivíduos
-        self.gerações   = [indivíduos]
-        self.n          = len(indivíduos)
-        self.mutações   = []
-        self.pm         = pm
+        self.probabilidade_de_mutar = probabilidade_de_mutar
+        self.indivíduos             = indivíduos
+        self.gerações               = [indivíduos]
+        self.mutações               = []
+        self.n_da_geração           = 0
+        self.n_de_indivíduos        = len(indivíduos)
 
     def avançar_gerações(self, n):
         for _ in range(n):
@@ -67,7 +101,7 @@ class População:
         return self
         
     def próxima_geração(self):
-        self.geração += 1
+        self.n_da_geração += 1
         
         indivíduos_selecionados = self.seleção_natural()
         nova_geração            = self.reprodução(indivíduos_selecionados)
@@ -78,31 +112,65 @@ class População:
         novos_indivíduos.sort(reverse=True)
         
         self.gerações.append(novos_indivíduos)
-        self.indivíduos    = novos_indivíduos
+        self.indivíduos = novos_indivíduos
         
         return self
         
     def seleção_natural(self):
+        """
+        Seleciona os indivíduos com melhores genes.
+
+        Testa os indivíduos cuja adaptação ainda não foi calculada e retorna a metade mais adaptada numa lista
+
+        Retorna
+        -------
+        indivíduos_selecionados: List[Projeto] -- Vencedores da seleção natural
+        """
+
+        # Testa os indivíduos ainda não adaptados da população
         for ind in self.indivíduos:
             if not ind.adaptação_testada:
                 self.conseguir_adaptação(ind)
-                
-        return sorted(self.indivíduos, reverse=True)[:self.n//2]
-        
+
+        # Ordena os indivíduos por adaptação decrescente e filtra a metade superior
+        indivíduos_selecionados = sorted(self.indivíduos, reverse=True)[:self.n_de_indivíduos // 2]
+
+        return indivíduos_selecionados
+
     def conseguir_adaptação(self, ind):
-        if ind.id_do_gene() in self.genes_testados.keys():
-            ind.adaptação = self.genes_testados[ind.id_do_gene()]
+        """Checa se o gene do indivíduo já teve sua adaptação testada e armazena os valores já calculados."""
+        if ind.id_do_gene in self.genes_testados.keys():
+            ind.adaptação = self.genes_testados[ind.id_do_gene]
         else:
             self.testar_adaptação(ind)
-            self.genes_testados[ind.id_do_gene()] = ind.adaptação
+            self.genes_testados[ind.id_do_gene] = ind.adaptação
         
     def reprodução(self, inds):
-        filhos = []
+        """
+        Determina em quais indivíduos aplicar o operador de crossover para gerar novos indivíduos filhos.
+
+        Define probabilidades de reproduzir para cada indivíduo proporcionalmente às suas adaptações. Seleciona dentre
+        elas aleatoriamente e executa o operador de crossover tantas vezes quanto seja necessário para gerar a quanti-
+        dade de indivíduos filhos desejada.
+
+        ARGUMENTOS
+        ----------
+        inds  : List[Indivíduo] -- Lista de indivíduos selecionados para sobrevivência e reprodução.
+
+        RETORNA
+        -------
+        filhos: List[Indivíduo] -- Resultado da aplicação sucessiva do operador de crossover
+        """
+
+        filhos     = []
+        adaptações = np.array([i.adaptação for i in inds])
         
-        pesos = np.array([i.adaptação for i in inds])
-        
-        for k in range(self.n - len(inds)):
-            pais = np.random.choice(inds, size=2, replace=False, p=pesos/(pesos.sum()))
+        for k in range(self.n_de_indivíduos - len(inds)):
+
+            probabilidades = adaptações/(adaptações.sum())
+
+            # Escolhe dois indivíduos distintos como pais de acordo com suas probabilidades de reprodução
+            pais = np.random.choice(inds, size=2, replace=False, p=probabilidades)
                 
             ind_filho = self.crossover(pais[0], pais[1], k + 1)
             self.conseguir_adaptação(ind_filho)
@@ -110,61 +178,27 @@ class População:
             
         return filhos
             
-    #Sobrescrever
+    # Sobrescrever
     def crossover(self, ind1, ind2, i):
-        k1, k2 = np.random.randint(1, 8, (2,))
-        
-        while k1 == k2:
-            k2 = np.random.randint(1, 8, (1,))
-            
-        kmax, kmin = int(max(k1, k2)), int(min(k1, k2))
-        
-        return Indivíduo(ind1.gene[:kmin] + ind2.gene[kmin:kmax] + ind1.gene[kmax:],
-                         nome="G{}_{}".format(self.geração, i))
+        pass
     
-    #Sobrescrever
-    def mutação(self, g):
-        for ind in g:
-            mutated = False
-            for i, b in enumerate(ind.gene):
-                p = np.random.random()
-                if p < self.pm:
-                    mutated = True
-                    ind.gene = ind.gene[:i] + ("0" if ind.gene[i] == "1" else "1") + ind.gene[i + 1:]
-            if mutated:
-                ind.adaptação_testada = False
-                self.mutações.append("Indivíduo {} indo para a geração {}".format(
-                                     ind.nome, self.geração - 1))
+    # Sobrescrever
+    def mutação(self, geração):
+        pass
 
-    #Sobrescrever
-    def testar_adaptação(self, ind):
-        ind.adaptação = sum([int(n)*(2**i) for i, n in enumerate(ind.gene)])
-    
+    # Sobrescrever
+    def testar_adaptação(self, indivíduo):
+        pass
+
+    # Sobrescrever
     def geração_0(self):
-        return [Indivíduo("".join([str(b) for b in np.random.randint(0, 2, (8,))]), nome="G0_{}".format(i))
-                                                                                          for i in range(10)]
+        pass
     
     def __repr__(self):
-        return "Geração {} de População de {} indivíduos: {}".format(self.geração,self.n, self.indivíduos)
+        return "Geração {} de População de {} indivíduos: {}".format(self.n_da_geração, self.n_de_indivíduos, self.indivíduos)
     
     def __str__(self):
-        return ("População de {} indivíduos em sua geração {}:\n".format(self.n, self.geração)
-                + (self.n *"> {}\n").format(*self.indivíduos)
+        return ("População de {} indivíduos em sua geração {}:\n".format(self.n_de_indivíduos, self.n_da_geração)
+                + (self.n_de_indivíduos * "> {}\n").format(*self.indivíduos)
                 + "---------Mutações---------\n"
                 + "\n".join(self.mutações))
-
-
-if __name__ == "__main__":
-    np.random.seed(0)
-    
-    pop = População()
-    pop.avançar_gerações(10)
-
-    from matplotlib import pyplot as plt
-
-    X = np.arange(11)
-    Y = [np.mean(adg) for adg in [[ind.adaptação for ind in gen] for gen in pop.gerações]]
-
-    plt.plot(X, Y)
-
-    plt.show()

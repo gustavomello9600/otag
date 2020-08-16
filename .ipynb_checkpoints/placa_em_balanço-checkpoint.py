@@ -109,10 +109,10 @@ class População_de_Projetos(População):
             
             gene_novo[ibc:ibb, jbe:jdd] = p2.gene[ibc:ibb, jbe:jdd]
         
-        return Projeto(gene_novo, "G{}_{}".format(self.geração, índice))
+        return Projeto(gene_novo, "G{}_{}".format(self.n_da_geração, índice))
     
     def mutação(self, g):
-        Médias   = sum([ind.gene for ind in self.indivíduos])/self.n
+        Médias   = sum([ind.gene for ind in self.indivíduos])/self.n_de_indivíduos
         Médias_2 = Médias ** 2
 
         for ind in g:
@@ -311,7 +311,7 @@ class População_de_Projetos(População):
             if gene_útil.data.tobytes() not in self.genes_úteis_testados:
                 timed = True if ind.nome.endswith("1") else False
 
-                ind.f, ind.u, ind.malha = resolva_para(38, malha=Malha(elementos_conectados, nós, me), timed=timed)
+                ind.f, ind.u, ind.malha = resolva_para(38, malha=Malha(elementos_conectados, nós, me))
 
                 Acon = gene_útil.sum()*(l**2)
                 Ades = ind.gene.sum()*(l**2) - Acon

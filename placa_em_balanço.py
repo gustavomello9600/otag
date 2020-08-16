@@ -47,7 +47,7 @@ class Projeto(Indivíduo):
 
     Propriedades
     ------------
-    espécie: int -- Número da espécie a qual o indivíduo pertence
+    espécie: int -- Número da espécie a qual o indivíduo pertence.
     """
 
     def __init__(self, *args, **kwargs):
@@ -128,14 +128,10 @@ class PopulaçãoDeProjetos(População):
     Dlim = 0.005
     genes_úteis_testados = dict()
 
-    def __init__(self, indivíduos=None, pm=0.01 / 100):
-        super(PopulaçãoDeProjetos, self).__init__(indivíduos=indivíduos, pm=pm)
+    def __init__(self, indivíduos=None, probabilidade_de_mutar=0.01 / 100):
+        super(PopulaçãoDeProjetos, self).__init__(indivíduos=indivíduos, probabilidade_de_mutar=probabilidade_de_mutar)
         self.perfis_das_espécies = dict()
         self.alfa = self.alfa_0
-
-    def próxima_geração(self):
-        self.alfa = self.alfa_0 * (1.01 ** (self.geração))
-        super(PopulaçãoDeProjetos, self).próxima_geração()
 
     def geração_0(self, t=4):
         """
@@ -351,6 +347,10 @@ class PopulaçãoDeProjetos(População):
 
         return gene
 
+    def próxima_geração(self):
+        self.alfa = self.alfa_0 * (1.01 ** (self.n_da_geração))
+        super(PopulaçãoDeProjetos, self).próxima_geração()
+
     def crossover(self, p1, p2, índice):
         """
         Gera um indivíduo filho a partir do cruzamento de dois indivíduos pais.
@@ -401,7 +401,7 @@ class PopulaçãoDeProjetos(População):
 
             gene_novo[ibc:ibb, jbe:jbd] = p2.gene[ibc:ibb, jbe:jbd]
 
-        return Projeto(gene_novo, nome=f"G{self.geração}_{índice}")
+        return Projeto(gene_novo, nome=f"G{self.n_da_geração}_{índice}")
 
     def mutação(self, nova_geração):
         """
@@ -423,7 +423,7 @@ class PopulaçãoDeProjetos(População):
         """
 
         # Obtém a média, e a média ao quadrado, de cada bit na população
-        Médias = sum([ind.gene for ind in self.indivíduos]) / self.n
+        Médias = sum([ind.gene for ind in self.indivíduos]) / self.n_de_indivíduos
         Médias_2 = Médias ** 2
 
         for ind in nova_geração:
@@ -478,10 +478,7 @@ class PopulaçãoDeProjetos(População):
                 timed = ind.nome.endswith("1")
 
                 # Chama o resolvedor do módulo suporte.membrana_quadrada.py
-                ind.f, ind.u, ind.malha = resolva_para(38,
-                                                       P=100e3,
-                                                       malha=Malha(elementos_conectados, nós, me),
-                                                       timed=timed)
+                ind.f, ind.u, ind.malha = resolva_para(38, P=100e3, malha=Malha(elementos_conectados, nós, me))
 
                 # Determina as áreas conectadas e desconectadas
                 Acon = gene_útil.sum() * (l ** 2)
@@ -711,33 +708,12 @@ class PopulaçãoDeProjetos(População):
             except ValueError:
                 pass
 
-    def seleção_natural(self):
-        """
-        Seleciona os indivíduos com melhores genes.
-
-        Testa os indivíduos cuja adaptação ainda não foi calculada e retorna a metade mais adaptada numa lista
-
-        Retorna
-        -------
-        indivíduos_selecionados: List[Projeto] -- Vencedores da seleção natural
-        """
-
-        # Testa os indivíduos ainda não adaptados da população
-        for ind in self.indivíduos:
-            if not ind.adaptação_testada:
-                self.conseguir_adaptação(ind)
-
-        # Ordena os indivíduos por adaptação decrescente e filtra a metade superior
-        indivíduos_selecionados = sorted(self.indivíduos, reverse=True)[:self.n // 2]
-
-        return indivíduos_selecionados
-
 
 # TODO Implementação primitiva de um classificador de espécies
 def implementar_dentro():
     def do_método_seleção_natural(self):
         if self.perfis_das_espécies is None:
-            indivíduos_selecionados = sorted(self.indivíduos, reverse=True)[:self.n // 2]
+            indivíduos_selecionados = sorted(self.indivíduos, reverse=True)[:self.n_de_indivíduos // 2]
 
             genes = np.array([ind.gene.flatten() for ind in indivíduos_selecionados])
 

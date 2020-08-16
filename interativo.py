@@ -1,10 +1,12 @@
 import pickle
-import numpy as np
-import pandas as pd
 from pathlib import Path
 from random import seed, getstate, setstate
-from placa_em_balanço import PopulaçãoDeProjetos
+
+import numpy as np
+import pandas as pd
 from matplotlib.pyplot import imshow, plot, colorbar, show, legend, clf, savefig
+
+from placa_em_balanço import PopulaçãoDeProjetos
 
 semente = 0
 info_gerações = []
@@ -24,7 +26,7 @@ def mudar_semente(sem):
 def salvar_estado(pop):
     raiz = Path.cwd()
     pasta_da_semente = "semente_{}".format(semente)
-    pasta_da_geração = "geração_{}".format(pop.geração)
+    pasta_da_geração = "geração_{}".format(pop.n_da_geração)
     caminho          = raiz / "dados" / pasta_da_semente / pasta_da_geração
 
     caminho.mkdir(parents=True, exist_ok=True)
@@ -111,7 +113,7 @@ def execução_típica(n=100, pop=None, sem=0):
         mudar_semente(sem)
         pop = PopulaçãoDeProjetos()
 
-    for k in range(pop.geração, pop.geração + n):
+    for k in range(pop.n_da_geração, pop.n_da_geração + n):
         pop.próxima_geração()
 
         if k % 10 == 0:
@@ -137,7 +139,7 @@ def salvar_resultado(pop):
                                        "Adaptação", "Índice_de_Convergência", "alfa_0", "e"])
 
     sem  = semente
-    ger  = pop.geração
+    ger  = pop.n_da_geração
     prj  = pop.indivíduos[0]
     ima  = prj.nome
     adpt = prj.adaptação
