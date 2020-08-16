@@ -1,14 +1,38 @@
-#!/usr/bin/env python
-# coding: utf-8
+"""
+Este módulo utiliza os módulos de suporte para implementar classes que lidam com o problema
+de determinar o melhor projeto para uma placa em balanço sujeita a uma carga puntiforme.
 
-import numpy as np
-import scipy.cluster.hierarchy as sch
+Seu objetivo é criar uma interface de uso do algoritmo genético implementado em suporte.algoritmo_genético para
+otimizar topologicamente a placa em balanço discretizada pelo método dos elementos finitos e, por isso, entendida
+como uma malha de membranas quadradas, objetos implementados em suporte.membrana_quadrada.
+
+CONSTANTES
+----------
+CONSTANTE_DE_PENALIZAÇÃO_DA_ÁREA_DESCONECTADA: float -- Valor usado no cálculo de adaptação para penalizar a presença
+                                                        de material genético não aproveitado
+
+CLASSES
+-------
+Projeto
+    Classe que carrega as propriedades de cada projeto. Herda seus principais atributos e métodos da classe
+    Indivíduo do módulo algoritmo_genético.py
+PopulaçãoDeProjetos
+    Classe de objetos que agregam os indivíduos de uma população de projetos e os manipulam de acordo
+    com operadores genéticos específicos ao problema. Herda seus atributos da classe População definida em
+    suporte.algoritmo_genético.py e tem a maior parte dos seus métodos sobrescritos aqui.
+"""
 
 from copy import copy
 from random import choice, shuffle
 
+import numpy as np
+import scipy.cluster.hierarchy as sch
+
 from suporte.algoritmo_genético import Indivíduo, População
 from suporte.membrana_quadrada import Nó, Elemento, Malha, resolva_para
+
+
+CONSTANTE_DE_PENALIZAÇÃO_DA_ÁREA_DESCONECTADA = 0.4
 
 
 class Projeto(Indivíduo):
@@ -46,7 +70,7 @@ class PopulaçãoDeProjetos(População):
     """
     Classe de objetos que agregam os indivíduos de uma população de projetos e os manipulam de acordo
     com operadores genéticos específicos ao problema. Herda seus atributos da classe População definida em
-    algoritmo_genético.py e tem a maior parte dos seus métodos sobrescritos aqui.
+    suporte.algoritmo_genético.py e tem a maior parte dos seus métodos sobrescritos aqui.
 
     Atributos (da classe)
     ---------------------
@@ -63,11 +87,20 @@ class PopulaçãoDeProjetos(População):
     -------
     OPERADORES GENÉTICOS
     próxima_geração() -> None
-        Executa todos os passos necessários para avançar uma geração como implementado pela classe População.
-        Adicionalmente, atualiza o valor de alfa.
+        Executa todos os passos necessários para avançar uma geração como implementado pela classe População
+        no módulo suporte.algoritmo_genético. Adicionalmente, atualiza o valor de alfa.
     geração_0(t: int) -> projetos: List[Projeto]
         Gera aleatoriamente 100 projetos de espessura interna mínima igual a t que estão conectados à borda
         e ao ponto de aplicação da carga.
+    crossover(p1: Projeto, p2: Projeto, índice: int) -> Projeto
+        Gera um indivíduo filho a partir do cruzamento de dois indivíduos pais.
+    mutação(nova_geração: List[Projeto]) -> None
+        Vira alguns bits dos genes dos indivíduos da próxima geração da população de acordo com uma
+        probabilidade de mutar definida na construção da instância.
+    testar_adaptação(ind: Projeto) -> None
+        Testa a adaptação do indivíduo utilizando a modelagem e as condições de contorno do problema.
+    seleção_natural() -> indivíduos_selecionados: List[Projeto]
+        Seleciona os indivíduos com melhores genes.
 
     ESTÁTICOS (AUXILIARES)
     fatiar_intervalo(c: int, t: int, f: int, dividir_ao_meio: bool) -> ks: List[int]
@@ -79,10 +112,20 @@ class PopulaçãoDeProjetos(População):
         Caminha aleatoriamente por um grafo desde o ponto de aplicação da força até uma borda.
     formar_a_partir_do(grafo: np.array((7, 14), kis: List[int], kjs: List[int]) -> gene: np.array((38, 76))
         Recupera a informação do grafo de partição do espaço de projeto para formar o gene.
+    determinar_gene_útil(gene: np.array((38, 76)), l: int) -> gene_útil: np.array((38, 76)), borda_alcançada: bool,
+                                                              elementos: List[Elemento], nós: List[Nó],
+                                                              me: np.array((8, graus_de_liberdade))
+        Executa um algoritmo de busca responsável por determinar, para um certo gene cuja expressão fenotípica é dada
+        por uma malha de elementos quadrados de lado l, a maior porção contínua de matéria satisfazendo as restrições do
+        problema, isto é, estar conectada simultaneamente ao ponto de aplicação da força e à borda.
+    adicionar_à_malha_o_elemento_em(i: int, j: int, contexto: tuple) -> None
+        Cria o elemento em i, j atualizando a matriz de correspondência entre índices globais e locais
+    remover_de(possíveis_ramificações: list, i: int, j: int) -> None
+        Caso seja uma candidata, remove a posição i, j da lista de possíveis ramificações da árvore de busca
     """
 
     alfa_0 = 10
-    Dlim   = 0.005
+    Dlim = 0.005
     genes_úteis_testados = dict()
 
     def __init__(self, indivíduos=None, pm=0.01 / 100):
@@ -132,12 +175,12 @@ class PopulaçãoDeProjetos(População):
 
             # Inicializa uma instância de Projeto a partir do gene, atribuindo-lhe um nome G0_x que representa
             # o X-ésimo indivíduo da geração 0, e a põe na lista de Projetos
-            projetos.append(Projeto(gene, "G0_{}".format(k + 1)))
+            projetos.append(Projeto(gene, f"G0_{k + 1}"))
 
         return projetos
 
-    # Método Auxiliar
-    def fatiar_intervalo(self, c=38, t=4, f=7, dividir_ao_meio=False):
+    @staticmethod
+    def fatiar_intervalo(c=38, t=4, f=7, dividir_ao_meio=False):
         """
         Fatia aleatoriamente um intervalo de comprimento c em f fatias (ou subintervalos) de comprimento mínimo t
         e retorna uma lista com os índices correspondentes aos pontos de corte.
@@ -157,12 +200,15 @@ class PopulaçãoDeProjetos(População):
         # Calcula a folga do intervalo para a divisão esperada
         folga = c - f * t
         if folga <= 0:
-            raise ValueError("Impossível dividir intervalo de comprimento {}"
-                             " em {} fatias com {} de comprimento mínimo".format(c, f, t))
+            raise ValueError(f"Impossível dividir intervalo de comprimento "
+                             f"{c} em {f} fatias com {t} de comprimento mínimo")
+
+        # Abreviação do nome da classe usada para simplificar a chamada do método estático "distribuir"
+        pdp = PopulaçãoDeProjetos
 
         # Calcula os índices como o resultado da soma cumulativa do vetor que contém o comprimento de cada
         # subintervalo tomado como o comprimento mínimo somado a uma distribuição aleatória da folga
-        ks = np.cumsum([0] + list(np.array(f * [t]) + np.array(self.distribuir(folga, f))))
+        ks = np.cumsum([0] + list(np.array(f * [t]) + np.array(pdp.distribuir(folga, f))))
 
         # Corrige a divisão quando se deseja que haja um corte em c // 2
         if dividir_ao_meio:
@@ -305,7 +351,6 @@ class PopulaçãoDeProjetos(População):
 
         return gene
 
-    # Ensina como cruzar os genes dos Indivíduos (Projetos) selecionados para reprodução
     def crossover(self, p1, p2, índice):
         """
         Gera um indivíduo filho a partir do cruzamento de dois indivíduos pais.
@@ -356,63 +401,341 @@ class PopulaçãoDeProjetos(População):
 
             gene_novo[ibc:ibb, jbe:jbd] = p2.gene[ibc:ibb, jbe:jbd]
 
-        return Projeto(gene_novo, "G{}_{}".format(self.geração, índice))
+        return Projeto(gene_novo, nome=f"G{self.geração}_{índice}")
 
-    def mutação(self, g):
+    def mutação(self, nova_geração):
+        """
+        Vira alguns bits dos genes dos indivíduos da próxima geração da população corrente de acordo com uma
+        probabilidade de mutar definida na construção da instância.
+
+        Para cada bit de cada gene de cada indivíduo, calcula uma probabilidade de virar dependendo do seu valor
+        correspondente na média dos genes da geração anterior. Um bit do indivíduo que já convergiu na população trará
+        uma probabilidade mínima de virar caso esteja em concordância e uma probabilidade máxima caso esteja em discor-
+        dância.
+
+        Argumentos
+        ----------
+        nova_geração: List[Projeto] -- Lista de Projetos recém-formados pelo operador de crosover
+
+        Retorna
+        -------
+        None
+        """
+
+        # Obtém a média, e a média ao quadrado, de cada bit na população
         Médias = sum([ind.gene for ind in self.indivíduos]) / self.n
         Médias_2 = Médias ** 2
 
-        for ind in g:
+        for ind in nova_geração:
+            # Obtém a propabilidade de mutar de cada bit
             probabilidade_de_mutar = self.pm + 99 * self.pm * Médias_2 + 99 * self.pm * ind.gene * (1 - 2 * Médias)
+
+            # Sorteia os casos em que há mutação
             mutações = probabilidade_de_mutar > np.random.random((38, 76))
-            try:
-                ind.gene[mutações] = virar_bit(ind.gene[mutações])
-            except ValueError:
-                pass
+
+            # Vira os bits que resultaram em mutações
+            ind.gene[mutações] = ~ind.gene[mutações]
 
     def testar_adaptação(self, ind):
-        ind.adaptação_testada = True
+        """
+        Testa a adaptação do indivíduo utilizando a modelagem e as condições de contorno do problema.
 
+        Invoca um método que constrói o fenótipo do indivíduo, isto é, sua malha, a partir da porção útil do gene. Caso
+        a malha não esteja conectada à borda, atribui adaptação 0 ao indivíduo e sinaliza na saída do sistema. Caso es-
+        teja, verifica se um gene_útil idêntico já teve sua adaptação calculada. Caso não tenha, aplica o cálculo da a-
+        daptação.
+
+        Argumentos
+        ----------
+        ind: Projeto -- Projeto que terá a adaptação determinada
+
+        Retorna
+        -------
+        None
+        """
+
+        # Carrega o lado, em metros, do elemento de membrana quadrada
         l = 1 / 38
 
-        gene_útil, borda_alcançada, elementos_conectados, nós, me = determinar_gene_útil(ind.gene, l)
+        # Chama o algoritmo de identificação da porção útil do gene e construção do fenótipo.
+        gene_útil, borda_alcançada, elementos_conectados, nós, me = self.determinar_gene_útil(ind.gene, l)
 
         if not borda_alcançada:
-            print("> Indivíduo {} desconectado da borda".format(ind.nome))
+            print(f"> Indivíduo {ind.nome} desconectado da borda")
             ind.adaptação = 0
 
         else:
-            if gene_útil.data.tobytes() not in self.genes_úteis_testados:
-                timed = True if ind.nome.endswith("1") else False
+            # Checa se este gene útil já teve sua adaptação calculada antes
+            if gene_útil.data.tobytes() in self.genes_úteis_testados:
 
+                # Recupera a adaptação do cache
+                ind.adaptação = self.genes_úteis_testados[gene_útil.data.tobytes()]
+                print(f"> Adaptação de {ind.nome} já era conhecida pelo seu gene útil")
+
+            else:
+                # Determina que os tempos de execução de cada etapa da análise por elementos
+                # finitos sejam mensurados cada vez que o nome do Projeto terminar em "1"
+                timed = ind.nome.endswith("1")
+
+                # Chama o resolvedor do módulo suporte.membrana_quadrada.py
                 ind.f, ind.u, ind.malha = resolva_para(38,
                                                        P=100e3,
                                                        malha=Malha(elementos_conectados, nós, me),
                                                        timed=timed)
 
+                # Determina as áreas conectadas e desconectadas
                 Acon = gene_útil.sum() * (l ** 2)
                 Ades = ind.gene.sum() * (l ** 2) - Acon
 
+                # Calcula o deslocamento máximo como a raiz quadrada do maior
+                # valor de u_x² + u_y² dentre todos os nós da malha
                 n = len(nós)
                 Dmax = np.sqrt(np.sum(ind.u.reshape((n, 2)) ** 2, axis=1).max())
-                pena = 0 if Dmax < self.Dlim else Dmax - self.Dlim
 
-                if pena:
-                    print("> Indivíduo {} penalizado: Dmax - Dlim = {:.3e} metros".format(ind.nome, pena))
+                penalização = Dmax - self.Dlim if Dmax > self.Dlim else 0
 
-                ind.adaptação = 1 / (Acon + 0.4 * Ades + self.alfa * pena)
+                if penalização:
+                    print(f"> Indivíduo {ind.nome} penalizado: Dmax - Dlim = {penalização:.3e} metros")
 
-                print("> {} conectado à borda. Adaptação: {}".format(
-                    ind.nome, ind.adaptação))
+                e = CONSTANTE_DE_PENALIZAÇÃO_DA_ÁREA_DESCONECTADA
+                ind.adaptação = 1 / (Acon + e * Ades + self.alfa * penalização)
+
+                print(f"> {ind.nome} conectado à borda. Adaptação: {ind.adaptação}")
+
+        ind.adaptação_testada = True
+
+    @staticmethod
+    def determinar_gene_útil(gene, l):
+        """
+        Executa um algoritmo de busca responsável por determinar, para um certo gene cuja expressão fenotípica é dada
+        por uma malha de elementos quadrados de lado l, a maior porção contínua de matéria satisfazendo as restrições do
+        problema, isto é, estar conectada simultaneamente ao ponto de aplicação da força e à borda.
+
+        Também cuida de inicializar a malha correspondente à expressão fenotípica do gene e seus respectivos elementos e
+        nós. Embora ter uma função que lide com tantas operações ao mesmo tempo não seja o padrão de programação
+        recomendável na maioria dos casos, aqui se justifica pelo ganho em performance.
+
+        Argumentos
+        ----------
+        gene           : np.array((38, 76)) -- Matriz binária que carrega o código genético
+        l              : int                -- Comprimento do lado do elemento de membrana quadrado
+
+        Retorna
+        -------
+        gene_útil      : np.array((38, 76)) -- Matriz binária que carrega a porção do gene que forma o fenótipo
+        borda_alcançada: bool               -- O fenótipo se estende desde o ponto de aplicação da carga até a borda?
+        elementos      : list               -- Lista de Elementos que compõem a malha
+        nós            : list               -- Lista de Nós que compõem a malha
+        me             : np.array(( 8, ne)) -- Matriz de correspondência entre os índices locais e globais de cada grau
+                                               de liberdade (gsdl = graus de liberdade)
+        """
+        gene_útil = np.zeros((38, 76), dtype=bool)
+
+        # Define a posição inicial do algoritmo de busca
+        i = 19
+        j = 75
+
+        elementos = []
+        nós = []
+        me = []
+
+        # Inicializa listas auxiliares que ajudam a manter curso dos índices dos nós
+        nós_índices = set()
+        índice_na_malha = dict()
+
+        # Inicializa parâmetros do algoritmo de busca
+        possíveis_ramificações = []
+        último_movimento = "esquerda"
+        borda_alcançada = False
+        buscando = True
+        descida = True
+        subida = False
+
+        # Junta as variáveis importantes para métodos auxiliares
+        contexto = l, gene_útil, elementos, nós, me, nós_índices, índice_na_malha
+
+        # Simplifica a chamada de métodos auxiliares
+        pdp = PopulaçãoDeProjetos
+
+        # Executa o algoritmo de busca
+        while buscando:
+
+            # busca vertical
+            partida = (i, j)
+
+            # começar descida
+            while descida:
+
+                # consigo descer mais?
+                if i != 37:
+                    abaixo = gene[i + 1][j]
+                    descida = abaixo
+                else:
+                    descida = False
+
+                # há ramificações possíveis aqui do lado?
+                if j != 75 and último_movimento != "esquerda":
+                    direita = gene[i][j + 1]
+                    if direita and not gene_útil[i][j + 1]:
+                        possíveis_ramificações.append((i, j + 1, "direita"))
+
+                if j == 0:
+                    borda_alcançada = True
+
+                if j != 0 and último_movimento != "direita":
+                    esquerda = gene[i][j - 1]
+                    if esquerda and not gene_útil[i][j - 1]:
+                        possíveis_ramificações.append((i, j - 1, "esquerda"))
+
+                pdp.adicionar_à_malha_o_elemento_em(i, j, contexto=contexto)
+                pdp.remover_de(possíveis_ramificações, i, j)
+
+                # Decide se continua descendo ou se passa a subir
+                if descida:
+                    i = i + 1
+                    último_movimento = "baixo"
+                else:
+                    if partida[0] != 0:
+                        subida = gene[partida[0] - 1][partida[1]]
+                    else:
+                        subida = False
+
+                    if subida:
+                        i = partida[0] - 1
+
+            # começar subida
+            while subida:
+
+                # consigo subir mais?
+                if i != 0:
+                    acima = gene[i - 1][j]
+                    subida = acima
+                else:
+                    subida = False
+
+                # há ramificações possíveis aqui do lado?
+                if j != 75 and último_movimento != "esquerda":
+                    direita = gene[i][j + 1]
+                    if direita and not gene_útil[i][j + 1]:
+                        possíveis_ramificações.append((i, j + 1, "direita"))
+
+                if j == 0:
+                    borda_alcançada = True
+
+                if j != 0 and último_movimento != "direita":
+                    esquerda = gene[i][j - 1]
+                    if esquerda and not gene_útil[i][j - 1]:
+                        possíveis_ramificações.append((i, j - 1, "esquerda"))
+
+                pdp.adicionar_à_malha_o_elemento_em(i, j, contexto=contexto)
+                pdp.remover_de(possíveis_ramificações, i, j)
+
+                # Decide se continua descendo ou se passa a subir
+                if subida:
+                    i = i - 1
+                    último_movimento = "cima"
+
+            if len(possíveis_ramificações) > 0:
+                i, j, último_movimento = possíveis_ramificações.pop(-1)
+                descida = True
+                subida = False
+
             else:
-                ind.adaptação = self.genes_úteis_testados[gene_útil.data.tobytes()]
-                print("> Adaptação de {} já era conhecida pelo seu gene útil".format(ind.nome))
+                buscando = False
+
+        # Inicializa os dados em matriz
+        me = np.array(me, dtype="int16").T
+
+        return gene_útil, borda_alcançada, elementos, nós, me
+
+    @staticmethod
+    def adicionar_à_malha_o_elemento_em(i, j, contexto=tuple()):
+        # Recebe o contexto
+        l, gene_útil, elementos, nós, me, nós_índices, índice_na_malha = contexto
+
+        # Marca a posição como pertencente ao gene útil
+        gene_útil[i][j] = True
+
+        # Inicializa os nós dos cantos do elemento
+        y = 1 - i * l
+        ul, ur, dr, dl = Nó((j * l, y)).def_ind((i, j)), \
+                         Nó(((j + 1) * l, y)).def_ind((i, j + 1)), \
+                         Nó(((j + 1) * l, y - l)).def_ind((i + 1, j + 1)), \
+                         Nó((j * l, y - l)).def_ind((i + 1, j))
+
+        índices_globais_dos_cantos = []
+
+        # Para cada nó em cada canto
+        for nó in (ul, ur, dr, dl):
+
+            # Se o índice do nó ainda não foi visto
+            if nó.índice not in nós_índices:
+
+                # Adiciona o canto à lista de nós que comporão a malha
+                nós.append(nó)
+
+                # Define o índice do canto na malha como o índice corrente
+                índice_na_malha[nó.índice] = len(nós_índices)
+                índices_globais_dos_cantos.append(len(nós_índices))
+
+                # Define que o nó já foi visto
+                nós_índices.add(nó.índice)
+
+            else:
+                índices_globais_dos_cantos.append(índice_na_malha[nó.índice])
+
+        iul, iur, idr, idl = índices_globais_dos_cantos
+
+        # Atualiza a matriz de correspondência int16entre os índices
+        # locais e globais dos nós para o elemento atual
+        me.append((2 * iul,
+                   2 * iul + 1,
+                   2 * iur,
+                   2 * iur + 1,
+                   2 * idr,
+                   2 * idr + 1,
+                   2 * idl,
+                   2 * idl + 1))
+
+        # Cria um elemento com os cantos e o adiciona
+        # à lista daqueles que comporão a malha
+        elementos.append(Elemento([ul, ur, dr, dl]))
+
+    @staticmethod
+    def remover_de(possíveis_ramificações, i, j):
+        try:
+            possíveis_ramificações.remove((i, j, "esquerda"))
+        except ValueError:
+            try:
+                possíveis_ramificações.remove((i, j, "direita"))
+            except ValueError:
+                pass
 
     def seleção_natural(self):
+        """
+        Seleciona os indivíduos com melhores genes.
+
+        Testa os indivíduos cuja adaptação ainda não foi calculada e retorna a metade mais adaptada numa lista
+
+        Retorna
+        -------
+        indivíduos_selecionados: List[Projeto] -- Vencedores da seleção natural
+        """
+
+        # Testa os indivíduos ainda não adaptados da população
         for ind in self.indivíduos:
             if not ind.adaptação_testada:
                 self.conseguir_adaptação(ind)
 
+        # Ordena os indivíduos por adaptação decrescente e filtra a metade superior
+        indivíduos_selecionados = sorted(self.indivíduos, reverse=True)[:self.n // 2]
+
+        return indivíduos_selecionados
+
+
+# TODO Implementação primitiva de um classificador de espécies
+def implementar_dentro():
+    def do_método_seleção_natural(self):
         if self.perfis_das_espécies is None:
             indivíduos_selecionados = sorted(self.indivíduos, reverse=True)[:self.n // 2]
 
@@ -431,227 +754,8 @@ class PopulaçãoDeProjetos(População):
             for i in range(len(indivíduos_selecionados)):
                 indivíduos_selecionados[i].definir_espécie(espécies_dos_genes[i])
 
-        indivíduos_selecionados = sorted(self.indivíduos, reverse=True)[:self.n // 2]
-
-        return indivíduos_selecionados
-
-
-virar_bit = np.vectorize(lambda b: 1 - b)
 
 def único(vetor):
     """Retorna um vetor com os valores únicos do vetor original de forma ordenada"""
     _, índice = np.unique(vetor, return_index=True)
     return vetor[np.sort(índice)]
-
-
-def determinar_gene_útil(gene, l):
-    """
-    Executa um algoritmo de busca responsável por determinar, para um certo gene cuja expressão fenotípica é dada
-    por uma malha de elementos quadrados de lado l, a maior porção contínua de matéria satisfazendo as restrições do
-    problema, isto é, estar conectada simultaneamente ao ponto de aplicação da força e à borda.
-
-    Também cuida de inicializar a malha correspondente à expressão fenotípica do gene e seus respectivos elementos e
-    nós. Embora ter uma função que lide com tantas operações ao mesmo tempo não seja o padrão de programação
-    recomendável na maioria dos casos, aqui se justifica pelo ganho em performance.
-
-    Argumentos
-    ----------
-    gene           : np.array((38, 76)) -- Matriz binária que carrega o código genético
-    l              : int                -- Comprimento do lado do elemento de membrana quadrado
-
-    Retorna
-    -------
-    gene_útil      : np.array((38, 76)) -- Matriz binária que carrega a porção do gene que forma o fenótipo
-    borda_alcançada: bool               -- O fenótipo se estende desde o ponto de aplicação da carga até a borda?
-    elementos      : list               -- Lista de Elementos que compõem a malha
-    nós            : list               -- Lista de Nós que compõem a malha
-    me             : np.array(( 8, ne)) -- Matriz de correspondência entre os índices locais e globais de cada grau
-                                           de liberdade (gsdl = graus de liberdade)
-    """
-    gene_útil = np.zeros((38, 76))
-
-    # Define a posição inicial do algoritmo de busca
-    i = 19
-    j = 75
-
-    elementos = []
-    nós = []
-    me = np.empty((8, 0), dtype="int16")
-
-    # Inicializa listas auxiliares que ajudam a manter curso dos índices dos nós
-    nós_índices = []
-    i_nó_na_malha = 0
-    índice_na_malha = dict()
-
-    # Inicializa parâmetros do algoritmo de busca
-    buscando = True
-    possíveis_ramificações = []
-    descida = True
-    subida = False
-    último_movimento = "esquerda"
-    borda_alcançada = False
-
-    # Executa o algoritmo de busca
-    while buscando:
-
-        # busca vertical
-        partida = (i, j)
-
-        # começar descida
-        while descida:
-
-            # consigo descer mais?
-            if i != 37:
-                abaixo = gene[i + 1][j]
-                descida = abaixo
-            else:
-                descida = False
-
-            # há ramificações possíveis aqui do lado?
-            if j != 75 and último_movimento != "esquerda":
-                direita = gene[i][j + 1]
-                if direita and not gene_útil[i][j + 1]:
-                    possíveis_ramificações.append((i, j + 1, "direita"))
-
-            if j == 0:
-                borda_alcançada = True
-
-            if j != 0 and último_movimento != "direita":
-                esquerda = gene[i][j - 1]
-                if esquerda and not gene_útil[i][j - 1]:
-                    possíveis_ramificações.append((i, j - 1, "esquerda"))
-
-            # Adiciona este elemento à malha
-
-            gene_útil[i][j] = 1
-
-            y = 1 - i * l
-            ul, ur, dr, dl = Nó((j * l, y)).def_ind((i, j)), \
-                             Nó(((j + 1) * l, y)).def_ind((i, j + 1)), \
-                             Nó(((j + 1) * l, y - l)).def_ind((i + 1, j + 1)), \
-                             Nó((j * l, y - l)).def_ind((i + 1, j))
-
-            índices = []
-            for nó in [ul, ur, dr, dl]:
-                if nó.índice not in nós_índices:
-                    nós.append(nó)
-                    nós_índices.append(nó.índice)
-                    índice_na_malha[nó.índice] = i_nó_na_malha
-                    i_nó_na_malha += 1
-                índices.append(índice_na_malha[nó.índice])
-
-            iul, iur, idr, idl = índices
-
-            me = np.append(me, np.array([[2 * iul],
-                                         [2 * iul + 1],
-                                         [2 * iur],
-                                         [2 * iur + 1],
-                                         [2 * idr],
-                                         [2 * idr + 1],
-                                         [2 * idl],
-                                         [2 * idl + 1]],
-                                        dtype="int16"), axis=1)
-
-            elementos.append(Elemento([ul, ur, dr, dl]))
-
-            # Remove a coordenada das possíveis novas ramificações
-            try:
-                possíveis_ramificações.remove((i, j, "esquerda"))
-            except ValueError:
-                try:
-                    possíveis_ramificações.remove((i, j, "direita"))
-                except ValueError:
-                    pass
-
-            # Decide se continua descendo ou se passa a subir
-            if descida:
-                i = i + 1
-                último_movimento = "baixo"
-            else:
-                if partida[0] != 0:
-                    subida = gene[partida[0] - 1][partida[1]]
-                else:
-                    subida = False
-
-                if subida:
-                    i = partida[0] - 1
-
-        # começar subida
-        while subida:
-
-            # consigo subir mais?
-            if i != 0:
-                acima = gene[i - 1][j]
-                subida = acima
-            else:
-                subida = False
-
-            # há ramificações possíveis aqui do lado?
-            if j != 75 and último_movimento != "esquerda":
-                direita = gene[i][j + 1]
-                if direita and not gene_útil[i][j + 1]:
-                    possíveis_ramificações.append((i, j + 1, "direita"))
-
-            if j == 0:
-                borda_alcançada = True
-
-            if j != 0 and último_movimento != "direita":
-                esquerda = gene[i][j - 1]
-                if esquerda and not gene_útil[i][j - 1]:
-                    possíveis_ramificações.append((i, j - 1, "esquerda"))
-
-            # Adiciona este elemento à malha
-            gene_útil[i][j] = 1
-
-            y = 1 - i * l
-            ul, ur, dr, dl = Nó((j * l, y)).def_ind((i, j)), \
-                             Nó(((j + 1) * l, y)).def_ind((i, j + 1)), \
-                             Nó(((j + 1) * l, y - l)).def_ind((i + 1, j + 1)), \
-                             Nó((j * l, y - l)).def_ind((i + 1, j))
-
-            índices = []
-            for nó in [ul, ur, dr, dl]:
-                if nó.índice not in nós_índices:
-                    nós.append(nó)
-                    nós_índices.append(nó.índice)
-                    índice_na_malha[nó.índice] = i_nó_na_malha
-                    i_nó_na_malha += 1
-                índices.append(índice_na_malha[nó.índice])
-
-            iul, iur, idr, idl = índices
-
-            me = np.append(me, np.array([[2 * iul],
-                                         [2 * iul + 1],
-                                         [2 * iur],
-                                         [2 * iur + 1],
-                                         [2 * idr],
-                                         [2 * idr + 1],
-                                         [2 * idl],
-                                         [2 * idl + 1]],
-                                        dtype="int16"), axis=1)
-
-            elementos.append(Elemento([ul, ur, dr, dl]))
-
-            # Remove a coordenada das possíveis novas ramificações
-            try:
-                possíveis_ramificações.remove((i, j, "esquerda"))
-            except ValueError:
-                try:
-                    possíveis_ramificações.remove((i, j, "direita"))
-                except ValueError:
-                    pass
-
-            # Decide se continua descendo ou se passa a subir
-            if subida:
-                i = i - 1
-                último_movimento = "cima"
-
-        if len(possíveis_ramificações) > 0:
-            i, j, último_movimento = possíveis_ramificações.pop(-1)
-            descida = True
-            subida = False
-
-        else:
-            buscando = False
-
-    return gene_útil, borda_alcançada, elementos, nós, me

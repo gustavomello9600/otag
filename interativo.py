@@ -29,17 +29,13 @@ def salvar_estado(pop):
 
     caminho.mkdir(parents=True, exist_ok=True)
 
-    backup_da_população     = "população.b"
-    backup_do_estado_numpy  = "estado_do_numpy.b"
-    backup_do_estado_random = "estado_do_random.b"
-
-    with open(caminho / backup_da_população, "wb") as backup:
+    with open(caminho / "população.b", "wb") as backup:
         pickle.dump(pop, backup)
 
-    with open(caminho / backup_do_estado_numpy, "wb") as backup:
+    with open(caminho / "estado_do_numpy.b", "wb") as backup:
         pickle.dump(np.random.get_state(), backup)
 
-    with open(caminho / backup_do_estado_random, "wb") as backup:
+    with open(caminho / "estado_do_random.b", "wb") as backup:
         pickle.dump(getstate(), backup)
 
 def carregar_estado(semente=0, geração=1):
@@ -48,19 +44,15 @@ def carregar_estado(semente=0, geração=1):
     pasta_da_geração = "geração_{}".format(geração)
     caminho = raiz / "dados" / pasta_da_semente / pasta_da_geração
 
-    backup_da_população = "população.b"
-    backup_do_estado_numpy = "estado_do_numpy.b"
-    backup_do_estado_random = "estado_do_random.b"
-
     try:
-        with open(caminho / backup_da_população, "rb") as backup:
+        with open(caminho / "população.b", "rb") as backup:
             pop = pickle.load(backup)
 
-        with open(caminho / backup_do_estado_numpy, "rb") as backup:
+        with open(caminho / "estado_do_numpy.b", "rb") as backup:
             estado = pickle.load(backup)
             np.random.set_state(estado)
 
-        with open(caminho / backup_do_estado_random, "rb") as backup:
+        with open(caminho / "estado_do_random.b", "rb") as backup:
             estado = pickle.load(backup)
             setstate(estado)
 
@@ -68,7 +60,7 @@ def carregar_estado(semente=0, geração=1):
 
         return pop
 
-    except:
+    except FileNotFoundError:
         print("> Não há registros da geração {} começada com a semente {}".format(geração, semente))
 
 def filtrar_informações(pop):
