@@ -29,7 +29,7 @@ import numpy as np
 import scipy.cluster.hierarchy as sch
 
 from suporte.algoritmo_genético import Indivíduo, População
-from suporte.membrana_quadrada import Nó, Elemento, Malha, resolva_para
+from suporte.elementos_finitos import Nó, Elemento, Malha, resolva_para
 
 
 CONSTANTE_DE_PENALIZAÇÃO_DA_ÁREA_DESCONECTADA = 0.4
