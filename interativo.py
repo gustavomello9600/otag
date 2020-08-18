@@ -11,10 +11,12 @@ from placa_em_balanço import PopulaçãoDeProjetos
 semente = 0
 info_gerações = []
 
+
 def rodar_teste(n=1):
     mudar_semente(0)
     pop = PopulaçãoDeProjetos()
     pop.avançar_gerações(n)
+
 
 def mudar_semente(sem):
     global semente
@@ -22,6 +24,7 @@ def mudar_semente(sem):
     seed(sem)
     np.random.seed(sem)
     semente = sem
+
 
 def salvar_estado(pop):
     raiz = Path.cwd()
@@ -39,6 +42,7 @@ def salvar_estado(pop):
 
     with open(caminho / "estado_do_random.b", "wb") as backup:
         pickle.dump(getstate(), backup)
+
 
 def carregar_estado(semente=0, geração=1):
     raiz = Path.cwd()
@@ -65,12 +69,14 @@ def carregar_estado(semente=0, geração=1):
     except FileNotFoundError:
         print("> Não há registros da geração {} começada com a semente {}".format(geração, semente))
 
+
 def filtrar_informações(pop):
     global info_gerações
     for gen in pop.gerações:
         adpts = [ind.adaptação for ind in gen]
         info_gerações.append((np.max(adpts), np.mean(adpts), np.min(adpts)))
     pop.gerações.clear()
+
 
 def mostrar_progresso(info):
    X = range(len(info))
@@ -81,6 +87,7 @@ def mostrar_progresso(info):
    legend(["Máxima", "Média", "Mínima"])
    show()
 
+
 def mapa_de_convergência(pop):
     conv = sum([ind.gene for ind in pop.indivíduos])/100
     m_conv = np.vectorize(lambda x: 4*(x**2) - 4*x + 1)
@@ -89,6 +96,7 @@ def mapa_de_convergência(pop):
     imshow(conv, cmap="hot")
     colorbar()
     show()
+
 
 def mostrar_indivíduo(i, pop, tipo="malha", k=1):
     proj = pop.indivíduos[i]
@@ -101,16 +109,18 @@ def mostrar_indivíduo(i, pop, tipo="malha", k=1):
         colorbar()
         show()
 
+
 def ciclo_de_(n, pop):
     pop.avançar_gerações(n)
     filtrar_informações(pop)
     salvar_estado(pop)
 
-def execução_típica(n=100, pop=None, sem=0):
+
+def execução_típica(n=100, pop=None, semente=0):
     retornar = False
     if pop is None:
         retornar = True
-        mudar_semente(sem)
+        mudar_semente(semente)
         pop = PopulaçãoDeProjetos()
 
     for k in range(pop.n_da_geração, pop.n_da_geração + n):
@@ -126,6 +136,7 @@ def execução_típica(n=100, pop=None, sem=0):
 
     if retornar:
         return pop
+
 
 def salvar_resultado(pop):
     salvar_estado(pop)
@@ -170,6 +181,9 @@ def salvar_resultado(pop):
     savefig(caminho / ("malha_sem{}_{}.png".format(sem, prj.nome)), dpi=200)
     clf()
 
-
+def execução_completa():
+    for semente in range(10 + 1):
+        pop = execução_típica(n=300, semente=semente)
+        salvar_resultado(pop)
 
 mudar_semente(semente)

@@ -146,7 +146,7 @@ class PopulaçãoDeProjetos(População):
                                                   probabilidade_de_mutar=probabilidade_de_mutar)
         self.alfa = self.alfa_0
         self.placa_em_balanço = PlacaEmBalanço({"P": MAGNITUDE_DA_CARGA_APLICADA,
-                                                "n": ORDEM_DE_REFINAMENTO_DA_MALHA}, método_padrão="OptV2")
+                                                "n": ORDEM_DE_REFINAMENTO_DA_MALHA}, método_padrão="OptV2_denso")
 
         # Em implementação
         self.perfis_das_espécies = dict()
@@ -749,7 +749,8 @@ class PlacaEmBalanço(Problema):
         self._montador_do = {"expansão": self.montador_expansão,
                              "compacto": self.montador_compacto,
                              "OptV1": self.montador_OptV1,
-                             "OptV2": self.montador_OptV2}
+                             "OptV2": self.montador_OptV2,
+                             "OptV2_denso": self.montador_OptV2_denso}
 
     def determinar_graus_de_liberdade(self, malha):
         return 2*len(malha.nós)
@@ -830,7 +831,7 @@ class PlacaEmBalanço(Problema):
 
     @staticmethod
     def montador_OptV2(malha, Ke, graus_de_liberdade):
-        D = np.zeros((64, malha.ne))
+        D = np.zeros((64, malha.ne), dtype=float)
         I = np.zeros((64, malha.ne), dtype="int32")
         J = np.zeros((64, malha.ne), dtype="int32")
 
@@ -843,6 +844,16 @@ class PlacaEmBalanço(Problema):
                 d += 1
 
         return csr_matrix((D.flat, (I.flat, J.flat)), shape=(graus_de_liberdade, graus_de_liberdade)).toarray()
+
+    @staticmethod
+    def montador_OptV2_denso(malha, Ke, graus_de_liberdade):
+        K = np.empty((graus_de_liberdade, graus_de_liberdade), dtype=float)
+
+        for i in range(8):
+            for j in range(8):
+                K[malha.me[i, :], malha.me[j, :]] = Ke[i, j]
+
+        return K
 
     @Monitorador(mensagem="Condições de contorno incorporadas")
     def incorporar_condições_de_contorno(self, malha, graus_de_liberdade, P=0e0, n=1):
