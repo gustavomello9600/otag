@@ -1,13 +1,9 @@
-import pickle
 from math import isclose
-from pathlib import Path
 from timeit import default_timer
 
 import numpy as np
-import matplotlib.pyplot as plt
 from numpy.linalg import solve
-
-from suporte.membrana_quadrada import elemento_de_membrana_quadrada
+import matplotlib.pyplot as plt
 
 
 class Nó:
@@ -122,27 +118,7 @@ class Malha:
         return self.nós.index(nó)
 
 
-def monitorar(mensagem="Não definido"):
-    def auxiliar_do_monitorador(método):
-        def monitorador(self, *args, **kwargs):
-            if self._monitoramento_ativo:
-                antes = default_timer()
-
-            retorno = método(self, *args, **kwargs)
-
-            if self._monitoramento_ativo:
-                agora          = default_timer()
-                no_método      = agora - antes
-                desde_o_início = agora - self._início_do_monitoramento
-
-                print(f"> {desde_o_início: >10.5f}. {mensagem} ({no_método:.5f})")
-
-            return retorno
-        return monitorador
-    return auxiliar_do_monitorador()
-
-
-class Resolvedor:
+class Problema:
 
     def __init__(self, parâmetros_do_problema, método_padrão=None):
         self.parâmetros_do_problema = parâmetros_do_problema
@@ -151,26 +127,51 @@ class Resolvedor:
         self._monitoramento_ativo = False
         self._início_do_monitoramento = None
 
-    def resolva_para(self, parâmetros_dos_elementos, malha, método=None, monitorar=False):
+    class Monitorador:
+
+        def __init__(self, mensagem="Não definido"):
+            self._mensagem = mensagem
+
+        def __call__(self, método):
+            def monitorador(resolvedor, *args, **kwargs):
+                if resolvedor._monitoramento_ativo:
+                    antes = default_timer()
+
+                    retorno = método(resolvedor, *args, **kwargs)
+
+                    agora = default_timer()
+                    no_método = agora - antes
+                    desde_o_início = agora - resolvedor._início_do_monitoramento
+
+                    print(f"> {desde_o_início: >10.5f}. {self._mensagem} ({no_método:.5f})")
+
+                    return retorno
+                else:
+                    return método(resolvedor, *args, **kwargs)
+
+            return monitorador
+
+    def resolver_para(self, parâmetros_dos_elementos, malha, método=None, monitorar=False):
         self.configurar_monitoramento(monitorar)
 
-        graus_de_liberdade = self.determinar_graus_de_liberdade()
+        graus_de_liberdade = self.determinar_graus_de_liberdade(malha)
 
         Ks_locais = self.calcular_matrizes_de_rigidez_local(**parâmetros_dos_elementos)
         K = self.montar_matriz_de_rigidez_geral(malha, Ks_locais, graus_de_liberdade,
                                                 método=método if método is not None else self._método_padrão)
 
-        f, u, ifc, iuc = self.incorporar_condições_de_contorno(self.parâmetros_do_problema,
-                                                               parâmetros_dos_elementos,
+        f, u, ifc, iuc = self.incorporar_condições_de_contorno(malha,
                                                                graus_de_liberdade,
-                                                               malha)
+                                                               **self.parâmetros_do_problema)
 
-        # Lógica de solução do sistema linear
-        Kfc    = self.onde_f_é_conhecido_fatiar(K, ifc)
-        ufc    = self.resolver_sistema(Kfc, f[ifc])
-        u[ifc] = ufc
-        Kuc    = K[np.ix_(iuc, iuc)]
-        f[iuc] = Kuc @ u[iuc]
+        # Lógica de determinação de f e u
+        Kfc = self.onde_f_é_conhecido_fatiar(K, ifc)
+        ufc = self.resolver_sistema_linear(Kfc, f[ifc])
+
+        self.atualizar_graus_de_liberdade(u, ifc, ufc)
+
+        Kuc = self.onde_u_é_conhecido_fatiar(K, iuc)
+        self.atualizar_valores_de(f, iuc, Kuc @ u[iuc])
 
         self.desligar_monitoramento()
 
@@ -185,161 +186,37 @@ class Resolvedor:
         self._monitoramento_ativo = False
         self._última_medição = self._início_do_monitoramento = None
 
-    def determinar_graus_de_liberdade(self):
-        pass
+    def determinar_graus_de_liberdade(self, malha):
+        return 0
 
-    @monitorar(mensagem="Matrizes de Rigidez Local Calculadas")
+    @Monitorador(mensagem="Matrizes de rigidez local determinadas")
     def calcular_matrizes_de_rigidez_local(self, **parâmetros_dos_elementos):
-        pass
+        return list()
 
-    @monitorar(mensagem="Matrizes de Rigidez Global Acoplada")
-    def montar_matriz_de_rigidez_geral(self, Ks_locais, graus_de_liberdade, malha, método):
-        pass
+    @Monitorador(mensagem="Matriz de rigidez global montada")
+    def montar_matriz_de_rigidez_geral(self, malha, Ks_locais, graus_de_liberdade, método):
+        return np.empty((0, 0))
 
-    @monitorar(mensagem="Condições de Contorno Incorporadas")
-    def incorporar_condições_de_contorno(self, parâmetros_do_problema, parâmetros_dos_elementos,
-                                         graus_de_liberdade, malha):
-        pass
+    @Monitorador(mensagem="Condições de contorno incorporadas")
+    def incorporar_condições_de_contorno(self, malha, graus_de_liberdade, **parâmetros_do_problema):
+        return np.empty(0), np.empty(0), list(), list()
 
-    @monitorar(mensagem="K fatiado onde f é conhecido")
+    @Monitorador(mensagem="K fatiado onde f é conhecido")
     def onde_f_é_conhecido_fatiar(self, K, ifc):
         return K[np.ix_(ifc, ifc)]
 
-    @monitorar(mensagem="Sistema linear resolvido onde f é conhecido")
-    def resolver_sistema(self, Kfc, f_ifc):
+    @Monitorador(mensagem="Sistema linear resolvido onde f é conhecido")
+    def resolver_sistema_linear(self, Kfc, f_ifc):
         return solve(Kfc, f_ifc)
 
+    @Monitorador(mensagem="Graus de liberdade atualizados com o resultado da etapa anterior")
+    def atualizar_graus_de_liberdade(self, u, ifc, ufc):
+        u[ifc] = ufc
 
-def resolva_para(n=2, P=100e6, malha=None, padrão=True, método="OptV2"):
-    """Retorna u e f para uma malha de ordem n e carga aplicada P"""
+    @Monitorador(mensagem="K fatiado onde u é conhecido")
+    def onde_u_é_conhecido_fatiar(self, K, iuc):
+        return K[np.ix_(iuc, iuc)]
 
-    lq   = 1/n
-    gsdl = 2*len(malha.nós)
-
-    K_emq = conseguir_matriz_de_rigidez_local(lq, padrão)
-    K     = montar_matriz_de_rigidez_geral(K_emq, gsdl, malha, método)
-
-    f, u, ifc, iuc = incorporar_condições_de_contorno(P, gsdl, malha, n)
-
-    Kfc = K[np.ix_(ifc, ifc)]
-
-    ufc = solve(Kfc, f[ifc])
-    u[ifc] = ufc
-
-    Kuc = K[np.ix_(iuc, iuc)]
-
-    f[iuc] = Kuc @ u[iuc]
-
-    return f, u, malha
-
-
-def conseguir_matriz_de_rigidez_local(lq, padrão):
-    if padrão:
-        with open(Path(__file__).parent / "K_emq.b", "rb") as arquivo_de_cache:
-            K_emq = pickle.load(arquivo_de_cache)
-    else:
-        with open(Path(__file__).parent / "K_emq.b", "wb") as arquivo_de_cache:
-            K_emq = elemento_de_membrana_quadrada(lq)
-            pickle.dump(arquivo_de_cache)
-    return K_emq
-
-def montar_matriz_de_rigidez_geral(K_emq, gsdl, malha, método):
-    K = None
-    if método == "expansão":
-        Kes = dict()
-        for elemento in malha.elementos:
-            Ke = np.zeros((gsdl, gsdl))
-
-            índices = np.array([
-                [2 * malha.índice_do_nó(n), 2 * malha.índice_do_nó(n) + 1] for n in elemento.nós
-            ]).flatten()
-
-            for ie in range(len(índices)):
-                for je in range(len(índices)):
-                    i = índices[ie]
-                    j = índices[je]
-
-                    Ke[i][j] = K_emq[ie][je]
-
-            Kes[elemento] = Ke
-
-        K = sum(Kes.values())
-
-    elif método == "compacto":
-        K = np.zeros((gsdl, gsdl))
-
-        índices = dict()
-        for elemento in malha.elementos:
-            índices[elemento] = np.array([[2 * malha.índice_do_nó(n), 2 * malha.índice_do_nó(n) + 1]
-                                          for n in elemento.nós]).flatten()
-
-        for i in range(8):
-            for j in range(8):
-                for e in malha.elementos:
-                    p = índices[e][i]
-                    q = índices[e][j]
-
-                    K[p][q] += K_emq[i][j]
-
-    elif método == "OptV1":
-        from scipy.sparse import csr_matrix
-
-        D = np.zeros(64 * malha.ne)
-        I = np.zeros(64 * malha.ne, dtype="int32")
-        J = np.zeros(64 * malha.ne, dtype="int32")
-        d = 0
-        for e in range(malha.ne):
-            for i in range(8):
-                for j in range(8):
-                    I[d] = malha.me[i][e]
-                    J[d] = malha.me[j][e]
-                    D[d] = K_emq[i][j]
-                    d += 1
-        K = csr_matrix((D, (I, J)), shape=(gsdl, gsdl)).toarray()
-
-    elif método == "OptV2":
-        from scipy.sparse import csr_matrix
-        ne = malha.ne
-
-        D = np.zeros((64, ne))
-        I = np.zeros((64, ne), dtype="int32")
-        J = np.zeros((64, ne), dtype="int32")
-
-        d = 0
-        for i in range(8):
-            for j in range(8):
-                D[d, :] = np.repeat(K_emq[i][j], ne)
-                I[d, :] = malha.me[i, :]
-                J[d, :] = malha.me[j, :]
-                d += 1
-        K = csr_matrix((D.flat, (I.flat, J.flat)), shape=(gsdl, gsdl)).toarray()
-
-    else:
-        raise NotImplementedError
-    return K
-
-
-def incorporar_condições_de_contorno(P, gsdl, malha, n):
-
-    f = np.zeros(gsdl)
-    u = np.zeros(gsdl)
-    u[:] = np.nan
-
-    # Condições de Contorno em u
-    for i in range(n + 1):
-        try:
-            i1 = 2 * malha.nós.index(Nó((0, 1 - i / n)))
-        except ValueError:
-            continue
-        i2 = i1 + 1
-        u[i1:(i2 + 1)] = 0
-        f[i1:(i2 + 1)] = np.nan
-
-    # Condições de Contorno em f
-    gdl_P = grau_de_liberdade_associado_a_P = malha.nós.index(Nó((2, 0.5))) * 2 + 1
-    f[gdl_P] = -P
-
-    ifc = índices_onde_f_é_conhecido = np.where(~np.isnan(f))[0]
-    iuc = índices_onde_u_é_conhecido = np.where(~np.isnan(u))[0]
-
-    return f, u, ifc, iuc
+    @Monitorador(mensagem="Valores de f atualizados pela multiplicação de K por u")
+    def atualizar_valores_de(self, f, iuc, valores):
+        f[iuc] = valores

@@ -21,18 +21,30 @@ PopulaçãoDeProjetos
     com operadores genéticos específicos ao problema. Herda seus atributos da classe População definida em
     suporte.algoritmo_genético.py e tem a maior parte dos seus métodos sobrescritos aqui.
 """
-
+import math
 from copy import copy
 from random import choice, shuffle
 
 import numpy as np
 import scipy.cluster.hierarchy as sch
+from scipy.sparse import csr_matrix
 
+from suporte.membrana_quadrada import K_base
 from suporte.algoritmo_genético import Indivíduo, População
-from suporte.elementos_finitos import Nó, Elemento, Malha, resolva_para
+from suporte.elementos_finitos import Nó, Elemento, Malha, Problema
 
 
-CONSTANTE_DE_PENALIZAÇÃO_DA_ÁREA_DESCONECTADA = 0.4
+DESLOCAMENTO_LIMITE_DO_MATERIAL = 0.005
+MÓDULO_DE_YOUNG_DO_MATERIAL     = 210e9
+COEFICIENTE_DE_POYSSON          = 0.3
+MAGNITUDE_DA_CARGA_APLICADA     = 100e6
+ESPESSURA_DO_ELEMENTO           = 0.01
+ORDEM_DE_REFINAMENTO_DA_MALHA   = 38
+
+LADO_DO_ELEMENTO = 1/ORDEM_DE_REFINAMENTO_DA_MALHA
+
+CONSTANTE_DE_PENALIZAÇÃO_DA_ÁREA_DESCONECTADA        = 0.4
+CONSTANTE_DE_PENALIZAÇÃO_SOB_DESLOCAMENTO_EXCEDENTE  = 10
 
 
 class Projeto(Indivíduo):
@@ -124,14 +136,20 @@ class PopulaçãoDeProjetos(População):
         Caso seja uma candidata, remove a posição i, j da lista de possíveis ramificações da árvore de busca
     """
 
-    alfa_0 = 10
-    Dlim = 0.005
+    Dlim   = DESLOCAMENTO_LIMITE_DO_MATERIAL
+    alfa_0 = CONSTANTE_DE_PENALIZAÇÃO_SOB_DESLOCAMENTO_EXCEDENTE
+
     genes_úteis_testados = dict()
 
     def __init__(self, indivíduos=None, probabilidade_de_mutar=0.01 / 100):
-        super(PopulaçãoDeProjetos, self).__init__(indivíduos=indivíduos, probabilidade_de_mutar=probabilidade_de_mutar)
-        self.perfis_das_espécies = dict()
+        super(PopulaçãoDeProjetos, self).__init__(indivíduos=indivíduos,
+                                                  probabilidade_de_mutar=probabilidade_de_mutar)
         self.alfa = self.alfa_0
+        self.placa_em_balanço = PlacaEmBalanço({"P": MAGNITUDE_DA_CARGA_APLICADA,
+                                                "n": ORDEM_DE_REFINAMENTO_DA_MALHA}, método_padrão="OptV2")
+
+        # Em implementação
+        self.perfis_das_espécies = dict()
 
     def geração_0(self, t=4):
         """
@@ -146,7 +164,7 @@ class PopulaçãoDeProjetos(População):
 
         Argumentos
         ----------
-        t       : int            -- Espessura interna mínima
+        t: int -- Espessura interna mínima
 
         Retorna
         -------
@@ -428,7 +446,9 @@ class PopulaçãoDeProjetos(População):
 
         for ind in nova_geração:
             # Obtém a propabilidade de mutar de cada bit
-            probabilidade_de_mutar = self.pm + 99 * self.pm * Médias_2 + 99 * self.pm * ind.gene * (1 - 2 * Médias)
+            probabilidade_de_mutar = (self.probabilidade_de_mutar
+                                      + 99 * self.probabilidade_de_mutar * Médias_2
+                                      + 99 * self.probabilidade_de_mutar * ind.gene * (1 - 2 * Médias))
 
             # Sorteia os casos em que há mutação
             mutações = probabilidade_de_mutar > np.random.random((38, 76))
@@ -455,7 +475,7 @@ class PopulaçãoDeProjetos(População):
         """
 
         # Carrega o lado, em metros, do elemento de membrana quadrada
-        l = 1 / 38
+        l = LADO_DO_ELEMENTO
 
         # Chama o algoritmo de identificação da porção útil do gene e construção do fenótipo.
         gene_útil, borda_alcançada, elementos_conectados, nós, me = self.determinar_gene_útil(ind.gene, l)
@@ -475,10 +495,20 @@ class PopulaçãoDeProjetos(População):
             else:
                 # Determina que os tempos de execução de cada etapa da análise por elementos
                 # finitos sejam mensurados cada vez que o nome do Projeto terminar em "1"
-                timed = ind.nome.endswith("1")
+                monitorar = ind.nome.endswith("1")
 
                 # Chama o resolvedor do módulo suporte.membrana_quadrada.py
-                ind.f, ind.u, ind.malha = resolva_para(38, P=100e3, malha=Malha(elementos_conectados, nós, me))
+                ind.f, ind.u, ind.malha = \
+                    self.placa_em_balanço.resolver_para(
+
+                        monitorar=monitorar,
+                        malha=Malha(elementos_conectados, nós, me),
+                        parâmetros_dos_elementos={"l": LADO_DO_ELEMENTO,
+                                                  "t": ESPESSURA_DO_ELEMENTO,
+                                                  "v": COEFICIENTE_DE_POYSSON,
+                                                  "E": MÓDULO_DE_YOUNG_DO_MATERIAL}
+
+                    )
 
                 # Determina as áreas conectadas e desconectadas
                 Acon = gene_útil.sum() * (l ** 2)
@@ -707,6 +737,138 @@ class PopulaçãoDeProjetos(População):
                 possíveis_ramificações.remove((i, j, "direita"))
             except ValueError:
                 pass
+
+
+class PlacaEmBalanço(Problema):
+
+    Monitorador = Problema.Monitorador
+
+    def __init__(self, parâmetros_do_problema, método_padrão=None):
+        super().__init__(parâmetros_do_problema, método_padrão)
+        self.Ke = None
+        self._montador_do = {"expansão": self.montador_expansão,
+                             "compacto": self.montador_compacto,
+                             "OptV1": self.montador_OptV1,
+                             "OptV2": self.montador_OptV2}
+
+    def determinar_graus_de_liberdade(self, malha):
+        return 2*len(malha.nós)
+
+    @Monitorador(mensagem="Matrizes de rigidez local determinadas")
+    def calcular_matrizes_de_rigidez_local(self, **parâmetros_do_elemento_base):
+        if self.Ke is None:
+            self.Ke = K_base.calcular(parâmetros_do_elemento_base)
+
+            l = parâmetros_do_elemento_base['l']
+            t = parâmetros_do_elemento_base['t']
+            v = parâmetros_do_elemento_base['v']
+            E = parâmetros_do_elemento_base['E']
+
+            assert math.isclose(self.Ke[0, 0], (2*t*E*(v -3))/(3 * (l**2) * (v**2 - 1)))
+
+        return self.Ke
+
+    @Monitorador(mensagem="Matriz de rigidez global montada")
+    def montar_matriz_de_rigidez_geral(self, malha, Ke, graus_de_liberdade, método):
+        return self._montador_do[método](malha, Ke, graus_de_liberdade)
+
+    @staticmethod
+    def montador_expansão(malha, Ke, graus_de_liberdade):
+        Kes_expandidos = dict()
+        for elemento in malha.elementos:
+            Ke_expandido = np.zeros((graus_de_liberdade, graus_de_liberdade))
+
+            índices = np.array([
+                [2 * malha.índice_do_nó(n), 2 * malha.índice_do_nó(n) + 1] for n in elemento.nós
+            ]).flatten()
+
+            for ie in range(len(índices)):
+                for je in range(len(índices)):
+                    i = índices[ie]
+                    j = índices[je]
+
+                    Ke_expandido[i][j] = Ke[ie][je]
+
+            Kes_expandidos[elemento] = Ke_expandido
+
+        return sum(Kes_expandidos.values())
+
+    @staticmethod
+    def montador_compacto(malha, Ke, graus_de_liberdade):
+        K = np.zeros((graus_de_liberdade, graus_de_liberdade))
+
+        índices = dict()
+        for elemento in malha.elementos:
+            índices[elemento] = np.array([[2 * malha.índice_do_nó(n), 2 * malha.índice_do_nó(n) + 1]
+                                          for n in elemento.nós]).flatten()
+
+        for i in range(8):
+            for j in range(8):
+                for e in malha.elementos:
+                    p = índices[e][i]
+                    q = índices[e][j]
+
+                    K[p][q] += Ke[i][j]
+
+        return K
+
+    @staticmethod
+    def montador_OptV1(malha, Ke, graus_de_liberdade):
+        D = np.zeros(64 * malha.ne)
+        I = np.zeros(64 * malha.ne, dtype="int32")
+        J = np.zeros(64 * malha.ne, dtype="int32")
+        d = 0
+        for e in range(malha.ne):
+            for i in range(8):
+                for j in range(8):
+                    I[d] = malha.me[i][e]
+                    J[d] = malha.me[j][e]
+                    D[d] = Ke[i][j]
+                    d += 1
+
+        return csr_matrix((D, (I, J)), shape=(graus_de_liberdade, graus_de_liberdade)).toarray()
+
+    @staticmethod
+    def montador_OptV2(malha, Ke, graus_de_liberdade):
+        D = np.zeros((64, malha.ne))
+        I = np.zeros((64, malha.ne), dtype="int32")
+        J = np.zeros((64, malha.ne), dtype="int32")
+
+        d = 0
+        for i in range(8):
+            for j in range(8):
+                D[d, :] = np.repeat(Ke[i, j], malha.ne)
+                I[d, :] = malha.me[i, :]
+                J[d, :] = malha.me[j, :]
+                d += 1
+
+        return csr_matrix((D.flat, (I.flat, J.flat)), shape=(graus_de_liberdade, graus_de_liberdade)).toarray()
+
+    @Monitorador(mensagem="Condições de contorno incorporadas")
+    def incorporar_condições_de_contorno(self, malha, graus_de_liberdade, P=0e0, n=1):
+
+        f = np.zeros(graus_de_liberdade)
+        u = np.zeros(graus_de_liberdade)
+        u[:] = np.nan
+
+        # Condições de Contorno em u
+        for i in range(n + 1):
+            try:
+                i1 = 2 * malha.nós.index(Nó((0, 1 - i / n)))
+            except ValueError:
+                continue
+            i2 = i1 + 1
+            u[i1:(i2 + 1)] = 0
+            f[i1:(i2 + 1)] = np.nan
+
+        # Condições de Contorno em f
+        gdl_P = grau_de_liberdade_associado_a_P = malha.nós.index(Nó((2, 0.5))) * 2 + 1
+        f[gdl_P] = -P
+
+        ifc = índices_onde_f_é_conhecido = np.where(~np.isnan(f))[0]
+        iuc = índices_onde_u_é_conhecido = np.where(~np.isnan(u))[0]
+
+        return f, u, ifc, iuc
 
 
 # TODO Implementação primitiva de um classificador de espécies

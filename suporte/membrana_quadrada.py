@@ -1,22 +1,17 @@
-from timeit import default_timer
+import pickle
+from pathlib import Path
 
 import numpy as np
 from sympy import *
 
-matriz_K_está_pronta = False
-K_matrix             = None
-l, t, v, E           = None, None, None, None
 
+class KLocalBase:
 
-def elemento_de_membrana_quadrada(L, t_=0.01, v_=0.3, E_=210e9):
-    global matriz_K_está_pronta
-    global K_matrix
-    global l, t, v, E
-
-    if not matriz_K_está_pronta:
+    def __init__(self):
         print("-----------------")
-        print("> Calculando K(e)")
+        print("> Calculando K(e) base")
         print("Necessário apenas uma vez")
+
         qsi, eta = symbols("xi eta")
 
         N1_expr = (1 / 4) * (1 - eta) * (1 - qsi)
@@ -47,29 +42,36 @@ def elemento_de_membrana_quadrada(L, t_=0.01, v_=0.3, E_=210e9):
                                                          [v, 1, 0],
                                                          [0, 0, (1 - v) / 2]]))
 
-        K_matrix = B.T * E_m * B
-        K_matrix = K_matrix.subs({E_m: E_matrix, B: B_matrix}).doit()
-        K_matrix = t * K_matrix
-        K_matrix = K_matrix.integrate((qsi, -1, 1), (eta, -1, 1))
+        K_matriz = B.T * E_m * B
+        K_matriz = K_matriz.subs({E_m: E_matrix, B: B_matrix}).doit()
+        K_matriz = t * K_matriz
+        K_matriz = K_matriz.integrate((qsi, -1, 1), (eta, -1, 1))
 
-        print("> K(e) Calculado")
+        self.matriz = K_matriz
+        self.símbolo_de = {"l": l, "t": t, "v": v, "E": E}
+
+        print("> K(e) base calculado")
         print("-----------------")
 
-        matriz_K_está_pronta = True
-
-    return np.array(K_matrix.evalf(subs={l: L, t: t_, v: v_, E: E_}))
-
-
-
+    def calcular(self, valor_de):
+        parâmetros = valor_de.keys()
+        correspondência = {self.símbolo_de[p]: valor_de[p] for p in parâmetros}
+        return np.array(self.matriz.evalf(subs=correspondência))
 
 
-def monitorar(mensagem, início):
+def conseguir_K_local_base():
+    arquivo = Path(__file__).parent / "cache" / "K_emq_base.b"
 
-    agora    = default_timer()
-    até_aqui = agora - início
+    if not arquivo.exists():
+        arquivo.parent.mkdir(parents=True, exist_ok=True)
+        K_base = KLocalBase()
+        with arquivo.open("wb") as base_binária:
+            pickle.dump(K_base, base_binária)
+    else:
+        with arquivo.open("rb") as base_binária:
+            K_base = pickle.load(base_binária)
 
-    global último_tempo
-    na_operação  = até_aqui - último_tempo
-    último_tempo = até_aqui
+    return K_base
 
-    print("> {: >10.5f}. {} ({:.5f})".format(até_aqui, mensagem, na_operação))
+
+K_base = conseguir_K_local_base()
