@@ -9,7 +9,6 @@ População
     Classe de objetos que agregam Indivíduos e definem sobre eles operadores genéticos.
 """
 
-import uuid
 
 import numpy as np
 
@@ -38,10 +37,6 @@ class Indivíduo:
         self.adaptação         = 0
         self.adaptação_testada = False
         self.id_do_gene        = self.gerar_id_do_gene()
-
-    def gerar_nome_aleatório(self):
-        """Retorna uma string identificadora de 4 caracteres aleatórios"""
-        return str(uuid.uuid4())[:4]
 
     def gerar_id_do_gene(self):
         pass

@@ -41,21 +41,14 @@ class Elemento:
 
     def __init__(self, nós):
         self.nós = tuple(nós)
-        self.lado = nós[1].x - nós[0].x
         self.traçar_bordas()
-
-    def traçar_bordas(self):
-        """Cria um atributo de bordas como uma tupla de duplas de Nós que compartilham lados"""
-        self.bordas = tuple((nó, self.nós[i + 1 if i < 3 else 0]) for i, nó in enumerate(self.nós))
 
     def __str__(self):
         return self.__repr__()
 
-    def __repr__(self):
-        borda_superior = "{} — {}".format(self.nós[0], self.nós[1])
-        borda_inferior = "{} — {}".format(self.nós[2], self.nós[3])
-        meio = "|" + (max([len(borda_superior), len(borda_inferior)]) - 2) * " " + "|"
-        return "\n".join([borda_superior, meio, borda_inferior])
+    # Sobrescrever nas classes filhas
+    def traçar_bordas(self):
+        pass
 
 
 class Malha:
@@ -80,7 +73,7 @@ class Malha:
             deslocamento = np.zeros(2 * len(self.nós))
 
         for lado in self.lados:
-            i0, i1 = self.índice_do_nó(lado[0]), self.índice_do_nó(lado[1])
+            i0, i1 = self.índice_de(lado[0]), self.índice_de(lado[1])
             dx0, dx1 = deslocamento[2 * i0], deslocamento[2 * i1]
             dy0, dy1 = deslocamento[2 * i0 + 1], deslocamento[2 * i1 + 1]
 
@@ -114,7 +107,7 @@ class Malha:
 
         self.bordas_traçadas = True
 
-    def índice_do_nó(self, nó):
+    def índice_de(self, nó):
         return self.nós.index(nó)
 
 

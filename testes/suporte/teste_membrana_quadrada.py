@@ -1,4 +1,5 @@
-from suporte.membrana_quadrada import *
+from suporte.elementos.membrana_quadrada import *
+from suporte.elementos_finitos import Malha
 
 
 def criar_malha_cheia(n):
@@ -46,7 +47,7 @@ def criar_malha_cheia(n):
                         dl = nós[-1 if j != 1 else -2]
                         nós.extend([dr])
 
-            elementos.append(Elemento([ul, ur, dr, dl]))
+            elementos.append(MembranaQuadrada([ul, ur, dr, dl]))
             ie, je   = e // (2*n), e % (2*n)
             me[:, e] = 2*np.array([[          ie*(2*n + 1) + je,   ie*(2*n + 1) + je + 1,
                                     (ie + 1)*(2*n + 1) + je + 1, (ie + 1)*(2*n + 1) + je]], dtype="int16"

@@ -4,6 +4,21 @@ from pathlib import Path
 import numpy as np
 from sympy import *
 
+from suporte.elementos_finitos import Elemento
+
+
+class MembranaQuadrada(Elemento):
+
+    def traçar_bordas(self):
+        """Cria um atributo de bordas como uma tupla de duplas de Nós que compartilham lados"""
+        self.bordas = tuple((nó, self.nós[i + 1 if i < 3 else 0]) for i, nó in enumerate(self.nós))
+
+    def __repr__(self):
+        borda_superior = "{} — {}".format(self.nós[0], self.nós[1])
+        borda_inferior = "{} — {}".format(self.nós[2], self.nós[3])
+        meio = "|" + (max([len(borda_superior), len(borda_inferior)]) - 2) * " " + "|"
+        return "\n".join([borda_superior, meio, borda_inferior])
+
 
 class KLocalBase:
 
@@ -60,15 +75,15 @@ class KLocalBase:
 
 
 def conseguir_K_local_base():
-    arquivo = Path(__file__).parent / "cache" / "K_emq_base.b"
+    caminho_para_o_arquivo = Path(__file__).parent / "cache" / "K_emq_base.b"
 
-    if not arquivo.exists():
-        arquivo.parent.mkdir(parents=True, exist_ok=True)
+    if not caminho_para_o_arquivo.exists():
+        caminho_para_o_arquivo.parent.mkdir(parents=True, exist_ok=True)
         K_base = KLocalBase()
-        with arquivo.open("wb") as base_binária:
+        with caminho_para_o_arquivo.open("wb") as base_binária:
             pickle.dump(K_base, base_binária)
     else:
-        with arquivo.open("rb") as base_binária:
+        with caminho_para_o_arquivo.open("rb") as base_binária:
             K_base = pickle.load(base_binária)
 
     return K_base
