@@ -29,9 +29,9 @@ import numpy as np
 import scipy.cluster.hierarchy as sch
 from scipy.sparse import csr_matrix
 
-from suporte.membrana_quadrada import K_base
+from suporte.elementos.membrana_quadrada import K_base, MembranaQuadrada
 from suporte.algoritmo_genético import Indivíduo, População
-from suporte.elementos_finitos import Nó, Elemento, Malha, Problema
+from suporte.elementos_finitos import Nó, Malha, Problema
 
 
 DESLOCAMENTO_LIMITE_DO_MATERIAL = 0.005
@@ -69,6 +69,7 @@ class Projeto(Indivíduo):
     def gerar_id_do_gene(self):
         return self.gene.data.tobytes()
 
+    # Funcionalidade em Implementação
     @property
     def espécie(self):
         return self._espécie
@@ -726,7 +727,7 @@ class PopulaçãoDeProjetos(População):
 
         # Cria um elemento com os cantos e o adiciona
         # à lista daqueles que comporão a malha
-        elementos.append(Elemento([ul, ur, dr, dl]))
+        elementos.append(MembranaQuadrada([ul, ur, dr, dl]))
 
     @staticmethod
     def remover_de(possíveis_ramificações, i, j):
@@ -752,6 +753,7 @@ class PlacaEmBalanço(Problema):
                              "OptV2": self.montador_OptV2,
                              "OptV2_denso": self.montador_OptV2_denso}
 
+    @Monitorador(mensagem="Total de graus de liberdade determinados")
     def determinar_graus_de_liberdade(self, malha):
         return 2*len(malha.nós)
 
@@ -780,7 +782,7 @@ class PlacaEmBalanço(Problema):
             Ke_expandido = np.zeros((graus_de_liberdade, graus_de_liberdade))
 
             índices = np.array([
-                [2 * malha.índice_do_nó(n), 2 * malha.índice_do_nó(n) + 1] for n in elemento.nós
+                [2 * malha.índice_de(n), 2 * malha.índice_de(n) + 1] for n in elemento.nós
             ]).flatten()
 
             for ie in range(len(índices)):
@@ -800,7 +802,7 @@ class PlacaEmBalanço(Problema):
 
         índices = dict()
         for elemento in malha.elementos:
-            índices[elemento] = np.array([[2 * malha.índice_do_nó(n), 2 * malha.índice_do_nó(n) + 1]
+            índices[elemento] = np.array([[2 * malha.índice_de(n), 2 * malha.índice_de(n) + 1]
                                           for n in elemento.nós]).flatten()
 
         for i in range(8):

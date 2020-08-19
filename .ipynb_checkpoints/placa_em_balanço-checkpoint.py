@@ -9,11 +9,11 @@ from copy import copy
 from random import choice, seed
 
 # Importa os objetos necessários para discretizar o problema 
-from suporte.membrana_quadrada import Nó, Elemento, Malha
+from suporte.elementos.membrana_quadrada import Nó, Elemento, Malha
 
 # Importa a função que retorna os vetores de deslocamento $\vec{u}$ e o campo 
 # de forças $\vec{v}$ para uma dada malha, com carga P e refinamento de ordem n
-from suporte.membrana_quadrada import resolva_para
+from suporte.elementos.membrana_quadrada import resolva_para
 
 # Importa o objeto base do algoritmo genético
 from suporte.algoritmo_genético import Indivíduo, População
@@ -327,7 +327,6 @@ class População_de_Projetos(População):
 if __name__ == "__main__":
     seed(0)
     np.random.seed(0)
-    from matplotlib import pyplot as plt
 
     pop = População_de_Projetos()
     pop.próxima_geração()
