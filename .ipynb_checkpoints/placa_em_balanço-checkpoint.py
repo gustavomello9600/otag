@@ -9,11 +9,11 @@ from copy import copy
 from random import choice, seed
 
 # Importa os objetos necessários para discretizar o problema 
-from suporte.elementos.membrana_quadrada import Nó, Elemento, Malha
+from suporte.elementos_finitos.membrana_quadrada import Nó, Elemento, Malha
 
 # Importa a função que retorna os vetores de deslocamento $\vec{u}$ e o campo 
 # de forças $\vec{v}$ para uma dada malha, com carga P e refinamento de ordem n
-from suporte.elementos.membrana_quadrada import resolva_para
+from suporte.elementos_finitos.membrana_quadrada import resolva_para
 
 # Importa o objeto base do algoritmo genético
 from suporte.algoritmo_genético import Indivíduo, População

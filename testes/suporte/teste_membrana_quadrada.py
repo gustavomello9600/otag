@@ -1,4 +1,4 @@
-from suporte.elementos.membrana_quadrada import *
+from suporte.elementos_finitos.membrana_quadrada import *
 from suporte.elementos_finitos import Malha
 
 

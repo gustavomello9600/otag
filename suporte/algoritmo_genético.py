@@ -4,7 +4,7 @@ Fornece a estrutura de classes básicas para executar um algoritmo genético.
 CLASSES
 -------
 Indivíduo
-    Classe de objetos que carregam genes, elementos fenotípicos e valores de adaptação.
+    Classe de objetos que carregam genes, elementos_finitos fenotípicos e valores de adaptação.
 População
     Classe de objetos que agregam Indivíduos e definem sobre eles operadores genéticos.
 """
@@ -15,7 +15,7 @@ import numpy as np
 
 class Indivíduo:
     """
-    Classe de objetos que carregam genes, elementos fenotípicos e valores de adaptação.
+    Classe de objetos que carregam genes, elementos_finitos fenotípicos e valores de adaptação.
 
     São definidas operações de comparação baseadas nos valores de adaptação e um método de representação que traz
     seus nomes, suas adaptações e representações curtas de seus genes.
