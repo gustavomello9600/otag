@@ -1,15 +1,19 @@
+from typing import Any
 from math import isclose
 from timeit import default_timer
+from dataclasses import dataclass, field
 
 import numpy as np
 from numpy.linalg import solve
 import matplotlib.pyplot as plt
 
 
+@dataclass(frozen=True)
 class Nó:
 
-    def __init__(self, coordenadas):
-        self.x, self.y = coordenadas
+    x: float = field(hash=False)
+    y: float = field(hash=False)
+    etiqueta: Any = field(default=None, hash=True, compare=False)
 
     def __gt__(self, other):
         if self.y > other.y:
@@ -20,21 +24,16 @@ class Nó:
             return False
 
     def __lt__(self, other):
-        return not (self == other or self > other)
+        if self.y < other.y:
+            return True
+        elif self.y == other.y:
+            return self.x > other.x
+        else:
+            return False
 
     def __eq__(self, other):
         tol = 1e-10
         return (isclose(self.x, other.x, rel_tol=tol) and isclose(self.y, other.y, rel_tol=tol))
-
-    def __str__(self):
-        return ("Nó({}, {})".format(self.x, self.y))
-
-    def __repr__(self):
-        return ("Nó({}, {})".format(self.x, self.y))
-
-    def def_ind(self, índice):
-        self.índice = índice
-        return self
 
 
 class Elemento:

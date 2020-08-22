@@ -21,6 +21,7 @@ PopulaçãoDeProjetos
     com operadores genéticos específicos ao problema. Herda seus atributos da classe População definida em
     suporte.algoritmo_genético.py e tem a maior parte dos seus métodos sobrescritos aqui.
 """
+
 import math
 from copy import copy
 from random import choice, shuffle
@@ -137,15 +138,9 @@ class PopulaçãoDeProjetos(População):
         Caso seja uma candidata, remove a posição i, j da lista de possíveis ramificações da árvore de busca
     """
 
-    Dlim   = DESLOCAMENTO_LIMITE_DO_MATERIAL
-    alfa_0 = CONSTANTE_DE_PENALIZAÇÃO_SOB_DESLOCAMENTO_EXCEDENTE
-
-    genes_úteis_testados = dict()
-
     def __init__(self, indivíduos=None, probabilidade_de_mutar=0.01 / 100):
         super(PopulaçãoDeProjetos, self).__init__(indivíduos=indivíduos,
                                                   probabilidade_de_mutar=probabilidade_de_mutar)
-        self.alfa = self.alfa_0
         self.placa_em_balanço = PlacaEmBalanço({"P": MAGNITUDE_DA_CARGA_APLICADA,
                                                 "n": ORDEM_DE_REFINAMENTO_DA_MALHA}, método_padrão="OptV2_denso")
 
@@ -367,7 +362,7 @@ class PopulaçãoDeProjetos(População):
         return gene
 
     def próxima_geração(self):
-        self.alfa = self.alfa_0 * (1.01 ** (self.n_da_geração))
+        self.placa_em_balanço.alfa = self.placa_em_balanço.alfa_0 * (1.01 ** (self.n_da_geração))
         super(PopulaçãoDeProjetos, self).próxima_geração()
 
     def crossover(self, p1, p2, índice):
@@ -461,11 +456,6 @@ class PopulaçãoDeProjetos(População):
         """
         Testa a adaptação do indivíduo utilizando a modelagem e as condições de contorno do problema.
 
-        Invoca um método que constrói o fenótipo do indivíduo, isto é, sua malha, a partir da porção útil do gene. Caso
-        a malha não esteja conectada à borda, atribui adaptação 0 ao indivíduo e sinaliza na saída do sistema. Caso es-
-        teja, verifica se um gene_útil idêntico já teve sua adaptação calculada. Caso não tenha, aplica o cálculo da a-
-        daptação.
-
         Argumentos
         ----------
         ind: Projeto -- Projeto que terá a adaptação determinada
@@ -475,32 +465,65 @@ class PopulaçãoDeProjetos(População):
         None
         """
 
+        self.placa_em_balanço.testar_adaptação(ind)
+
+
+class PlacaEmBalanço(Problema):
+
+    fenótipos_testados = dict()
+
+    Dlim   = DESLOCAMENTO_LIMITE_DO_MATERIAL
+    alfa_0 = CONSTANTE_DE_PENALIZAÇÃO_SOB_DESLOCAMENTO_EXCEDENTE
+
+    Monitorador = Problema.Monitorador
+
+    def __init__(self, parâmetros_do_problema, método_padrão=None):
+        super().__init__(parâmetros_do_problema, método_padrão)
+
+        self.alfa = self.alfa_0
+        self.Ke = None
+        self._montador_do = {"expansão": self.montador_expansão,
+                             "compacto": self.montador_compacto,
+                             "OptV1": self.montador_OptV1,
+                             "OptV2": self.montador_OptV2,
+                             "OptV2_denso": self.montador_OptV2_denso}
+
+        print("Classe Nó incrementada com novo método")
+
+    # Métodos que recebem um indivíduo e retornam sua adaptação
+    def testar_adaptação(self, ind):
+        """
+        Invoca um método que constrói o fenótipo do indivíduo, isto é, sua malha, a partir da porção útil do gene. Caso
+        a malha não esteja conectada à borda, atribui adaptação 0 ao indivíduo e sinaliza na saída do sistema. Caso es-
+        teja, verifica se um fenótipo idêntico já teve sua adaptação calculada. Caso não tenha, aplica o cálculo da a-
+        daptação.
+        """
+
         # Carrega o lado, em metros, do elemento de membrana quadrada
         l = LADO_DO_ELEMENTO
 
         # Chama o algoritmo de identificação da porção útil do gene e construção do fenótipo.
-        gene_útil, borda_alcançada, elementos_conectados, nós, me = self.determinar_gene_útil(ind.gene, l)
+        fenótipo, borda_alcançada, elementos_conectados, nós, me = self.determinar_fenótipo(ind.gene, l)
 
         if not borda_alcançada:
             print(f"> Indivíduo {ind.nome} desconectado da borda")
             ind.adaptação = 0
 
         else:
-            # Checa se este gene útil já teve sua adaptação calculada antes
-            if gene_útil.data.tobytes() in self.genes_úteis_testados:
+            # Checa se este fenótipo já teve sua adaptação calculada antes
+            if fenótipo.data.tobytes() in self.fenótipos_testados:
 
                 # Recupera a adaptação do cache
-                ind.adaptação = self.genes_úteis_testados[gene_útil.data.tobytes()]
-                print(f"> Adaptação de {ind.nome} já era conhecida pelo seu gene útil")
+                ind.adaptação = self.fenótipos_testados[fenótipo.data.tobytes()]
+                print(f"> Adaptação de {ind.nome} já era conhecida pelo seu fenótipo")
 
             else:
                 # Determina que os tempos de execução de cada etapa da análise por elementos
                 # finitos sejam mensurados cada vez que o nome do Projeto terminar em "1"
                 monitorar = ind.nome.endswith("1")
 
-                # Chama o resolvedor do módulo suporte.membrana_quadrada.py
                 ind.f, ind.u, ind.malha = \
-                    self.placa_em_balanço.resolver_para(
+                    self.resolver_para(
 
                         monitorar=monitorar,
                         malha=Malha(elementos_conectados, nós, me),
@@ -512,7 +535,7 @@ class PopulaçãoDeProjetos(População):
                     )
 
                 # Determina as áreas conectadas e desconectadas
-                Acon = gene_útil.sum() * (l ** 2)
+                Acon = fenótipo.sum() * (l ** 2)
                 Ades = ind.gene.sum() * (l ** 2) - Acon
 
                 # Calcula o deslocamento máximo como a raiz quadrada do maior
@@ -533,7 +556,7 @@ class PopulaçãoDeProjetos(População):
         ind.adaptação_testada = True
 
     @staticmethod
-    def determinar_gene_útil(gene, l):
+    def determinar_fenótipo(gene, l):
         """
         Executa um algoritmo de busca responsável por determinar, para um certo gene cuja expressão fenotípica é dada
         por uma malha de elementos quadrados de lado l, a maior porção contínua de matéria satisfazendo as restrições do
@@ -568,7 +591,7 @@ class PopulaçãoDeProjetos(População):
         me = []
 
         # Inicializa listas auxiliares que ajudam a manter curso dos índices dos nós
-        nós_índices = set()
+        etiquetas_de_nós_já_construídos = set()
         índice_na_malha = dict()
 
         # Inicializa parâmetros do algoritmo de busca
@@ -580,10 +603,10 @@ class PopulaçãoDeProjetos(População):
         subida = False
 
         # Junta as variáveis importantes para métodos auxiliares
-        contexto = l, gene_útil, elementos, nós, me, nós_índices, índice_na_malha
+        contexto = l, gene_útil, elementos, nós, me, etiquetas_de_nós_já_construídos, índice_na_malha
 
         # Simplifica a chamada de métodos auxiliares
-        pdp = PopulaçãoDeProjetos
+        peb = PlacaEmBalanço
 
         # Executa o algoritmo de busca
         while buscando:
@@ -615,8 +638,8 @@ class PopulaçãoDeProjetos(População):
                     if esquerda and not gene_útil[i][j - 1]:
                         possíveis_ramificações.append((i, j - 1, "esquerda"))
 
-                pdp.adicionar_à_malha_o_elemento_em(i, j, contexto=contexto)
-                pdp.remover_de(possíveis_ramificações, i, j)
+                peb.adicionar_à_malha_o_elemento_em(i, j, contexto=contexto)
+                peb.remover_de(possíveis_ramificações, i, j)
 
                 # Decide se continua descendo ou se passa a subir
                 if descida:
@@ -655,8 +678,8 @@ class PopulaçãoDeProjetos(População):
                     if esquerda and not gene_útil[i][j - 1]:
                         possíveis_ramificações.append((i, j - 1, "esquerda"))
 
-                pdp.adicionar_à_malha_o_elemento_em(i, j, contexto=contexto)
-                pdp.remover_de(possíveis_ramificações, i, j)
+                peb.adicionar_à_malha_o_elemento_em(i, j, contexto=contexto)
+                peb.remover_de(possíveis_ramificações, i, j)
 
                 # Decide se continua descendo ou se passa a subir
                 if subida:
@@ -679,17 +702,17 @@ class PopulaçãoDeProjetos(População):
     @staticmethod
     def adicionar_à_malha_o_elemento_em(i, j, contexto=tuple()):
         # Recebe o contexto
-        l, gene_útil, elementos, nós, me, nós_índices, índice_na_malha = contexto
+        l, gene_útil, elementos, nós, me, etiquetas_de_nós_já_construídos, índice_na_malha = contexto
 
         # Marca a posição como pertencente ao gene útil
         gene_útil[i][j] = True
 
         # Inicializa os nós dos cantos do elemento
         y = 1 - i * l
-        ul, ur, dr, dl = Nó((j * l, y)).def_ind((i, j)), \
-                         Nó(((j + 1) * l, y)).def_ind((i, j + 1)), \
-                         Nó(((j + 1) * l, y - l)).def_ind((i + 1, j + 1)), \
-                         Nó((j * l, y - l)).def_ind((i + 1, j))
+        ul, ur, dr, dl = Nó(j * l, y, etiqueta=(i, j)), \
+                         Nó((j + 1) * l, y, etiqueta=(i, j + 1)), \
+                         Nó((j + 1) * l, y - l, etiqueta=(i + 1, j + 1)), \
+                         Nó(j * l, y - l, etiqueta=(i + 1, j))
 
         índices_globais_dos_cantos = []
 
@@ -697,24 +720,24 @@ class PopulaçãoDeProjetos(População):
         for nó in (ul, ur, dr, dl):
 
             # Se o índice do nó ainda não foi visto
-            if nó.índice not in nós_índices:
+            if nó.etiqueta not in etiquetas_de_nós_já_construídos:
 
                 # Adiciona o canto à lista de nós que comporão a malha
                 nós.append(nó)
 
                 # Define o índice do canto na malha como o índice corrente
-                índice_na_malha[nó.índice] = len(nós_índices)
-                índices_globais_dos_cantos.append(len(nós_índices))
+                índice_na_malha[nó.etiqueta] = len(etiquetas_de_nós_já_construídos)
+                índices_globais_dos_cantos.append(len(etiquetas_de_nós_já_construídos))
 
                 # Define que o nó já foi visto
-                nós_índices.add(nó.índice)
+                etiquetas_de_nós_já_construídos.add(nó.etiqueta)
 
             else:
-                índices_globais_dos_cantos.append(índice_na_malha[nó.índice])
+                índices_globais_dos_cantos.append(índice_na_malha[nó.etiqueta])
 
         iul, iur, idr, idl = índices_globais_dos_cantos
 
-        # Atualiza a matriz de correspondência int16entre os índices
+        # Atualiza a matriz de correspondência entre os índices
         # locais e globais dos nós para o elemento atual
         me.append((2 * iul,
                    2 * iul + 1,
@@ -739,20 +762,7 @@ class PopulaçãoDeProjetos(População):
             except ValueError:
                 pass
 
-
-class PlacaEmBalanço(Problema):
-
-    Monitorador = Problema.Monitorador
-
-    def __init__(self, parâmetros_do_problema, método_padrão=None):
-        super().__init__(parâmetros_do_problema, método_padrão)
-        self.Ke = None
-        self._montador_do = {"expansão": self.montador_expansão,
-                             "compacto": self.montador_compacto,
-                             "OptV1": self.montador_OptV1,
-                             "OptV2": self.montador_OptV2,
-                             "OptV2_denso": self.montador_OptV2_denso}
-
+    # Métodos auxiliares da resolução via análise de elementos finitos
     @Monitorador(mensagem="Total de graus de liberdade determinados")
     def determinar_graus_de_liberdade(self, malha):
         return 2*len(malha.nós)
@@ -767,7 +777,7 @@ class PlacaEmBalanço(Problema):
             v = parâmetros_do_elemento_base['v']
             E = parâmetros_do_elemento_base['E']
 
-            assert math.isclose(self.Ke[0, 0], (2*t*E*(v -3))/(3 * (l**2) * (v**2 - 1)))
+            assert math.isclose(self.Ke[0, 0], (2*t*E*(v - 3))/(3 * (l**2) * (v**2 - 1)))
 
         return self.Ke
 
@@ -821,13 +831,15 @@ class PlacaEmBalanço(Problema):
         I = np.zeros(64 * malha.ne, dtype="int32")
         J = np.zeros(64 * malha.ne, dtype="int32")
         d = 0
-        for e in range(malha.ne):
-            for i in range(8):
-                for j in range(8):
-                    I[d] = malha.me[i][e]
-                    J[d] = malha.me[j][e]
-                    D[d] = Ke[i][j]
-                    d += 1
+
+        índices_de_Ke_por_elemento = ((e, i, j) for e in range(malha.ne)
+                                                for i in range(8)
+                                                for j in range(8))
+
+        for d, (e, i, j) in enumerate(índices_de_Ke_por_elemento):
+            I[d] = malha.me[i][e]
+            J[d] = malha.me[j][e]
+            D[d] = Ke[i][j]
 
         return csr_matrix((D, (I, J)), shape=(graus_de_liberdade, graus_de_liberdade)).toarray()
 
@@ -837,13 +849,12 @@ class PlacaEmBalanço(Problema):
         I = np.zeros((64, malha.ne), dtype="int32")
         J = np.zeros((64, malha.ne), dtype="int32")
 
-        d = 0
-        for i in range(8):
-            for j in range(8):
-                D[d, :] = np.repeat(Ke[i, j], malha.ne)
-                I[d, :] = malha.me[i, :]
-                J[d, :] = malha.me[j, :]
-                d += 1
+        índices_de_Ke = ((i, j) for i in range(8) for j in range(8))
+
+        for d, (i, j) in enumerate(índices_de_Ke):
+            D[d, :] = np.repeat(Ke[i, j], malha.ne)
+            I[d, :] = malha.me[i, :]
+            J[d, :] = malha.me[j, :]
 
         return csr_matrix((D.flat, (I.flat, J.flat)), shape=(graus_de_liberdade, graus_de_liberdade)).toarray()
 
@@ -851,9 +862,10 @@ class PlacaEmBalanço(Problema):
     def montador_OptV2_denso(malha, Ke, graus_de_liberdade):
         K = np.empty((graus_de_liberdade, graus_de_liberdade), dtype=float)
 
-        for i in range(8):
-            for j in range(8):
-                K[malha.me[i, :], malha.me[j, :]] = Ke[i, j]
+        índices_de_Ke = ((i, j) for i in range(8) for j in range(8))
+
+        for i, j in índices_de_Ke:
+            K[malha.me[i, :], malha.me[j, :]] = Ke[i, j]
 
         return K
 
@@ -861,13 +873,12 @@ class PlacaEmBalanço(Problema):
     def incorporar_condições_de_contorno(self, malha, graus_de_liberdade, P=0e0, n=1):
 
         f = np.zeros(graus_de_liberdade)
-        u = np.zeros(graus_de_liberdade)
-        u[:] = np.nan
+        u = np.full(graus_de_liberdade, np.nan)
 
         # Condições de Contorno em u
         for i in range(n + 1):
             try:
-                i1 = 2 * malha.nós.index(Nó((0, 1 - i / n)))
+                i1 = 2 * malha.nós.index(Nó(0, 1 - i / n))
             except ValueError:
                 continue
             i2 = i1 + 1
@@ -875,7 +886,7 @@ class PlacaEmBalanço(Problema):
             f[i1:(i2 + 1)] = np.nan
 
         # Condições de Contorno em f
-        gdl_P = grau_de_liberdade_associado_a_P = malha.nós.index(Nó((2, 0.5))) * 2 + 1
+        gdl_P = grau_de_liberdade_associado_a_P = malha.nós.index(Nó(2, 0.5)) * 2 + 1
         f[gdl_P] = -P
 
         ifc = índices_onde_f_é_conhecido = np.where(~np.isnan(f))[0]
