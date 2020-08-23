@@ -8,67 +8,27 @@ Indivíduo
 População
     Classe de objetos que agregam Indivíduos e definem sobre eles operadores genéticos.
 """
-
+from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 
 
-class Indivíduo:
-    """
-    Classe de objetos que carregam genes, elementos_finitos fenotípicos e valores de adaptação.
-
-    São definidas operações de comparação baseadas nos valores de adaptação e um método de representação que traz
-    seus nomes, suas adaptações e representações curtas de seus genes.
-
-    ATRIBUTOS
-    ---------
-    nome             : str    -- Identificador do indivíduo. Normalmente o situa numa população.
-    adaptação        : Number -- Valor que qualifica seu gene em um determinado ambiente/problema.
-    adaptação_testada: bool   -- Verdadeiro se já foi determinada e falso caso contrário.
-    """
-    
-    def __init__(self, gene, nome=None):
-        self.gene = gene
-        if nome is None:
-            self.nome = self.gerar_nome_aleatório()
-        else:
-            self.nome = nome
-            
-        self.adaptação         = 0
-        self.adaptação_testada = False
-        self.id_do_gene        = self.gerar_id_do_gene()
-
-    def gerar_id_do_gene(self):
-        pass
-            
-    def __repr__(self):
-        return f"{self.nome}: {self.adaptação:.2f} ({self.gene.__repr__()[:15]}...)"
-    
-    def __gt__(self, other):
-        return self.adaptação  > other.adaptação
-    
-    def __lt__(self, other):
-        return self.adaptação  < other.adaptação
-    
-    def __eq__(self, other):
-        return self.adaptação == other.adaptação
-
-
-class População:
+class Ambiente:
     """
     Classe de objetos que agregam Indivíduos e definem sobre eles operadores genéticos.
 
-    Uma População implementa condições específicas de teste e combinação de indivíduos descrita pelos seus métodos.
-    É representada pelo rankind de adaptação de seus indivíduos e por uma lista das suas últimas mutações.
+    Um Ambiente implementa condições específicas de teste e combinação de indivíduos descrita pelos seus métodos. É re-
+    presentado pelo ranking de adaptação dos indivíduos da população corrente e por uma lista das suas últimas mutações.
 
     ATRIBUTOS (da classe)
     ---------------------
-    genes_testados        : dict                 -- Cache de valores de adaptação de genes já testados
+    genes_testados: dict -- Cache de valores de adaptação de genes já testados
 
     ATRIBUTOS (dos objetos)
     -----------------------
     probabilidade_de_mutar: float                -- Chance base de um bit de gene virar em decorrência de uma mutação
-    indivíduos            : List[Indivíduo]      -- Carrega os indivíduos da geração corrente
+    população             : List[Indivíduo]      -- Carrega os indivíduos da geração corrente
     gerações              : List[List[Indivíduo] -- Carrega históricos de cada geração. Limpa-se e se sumariza durante a
                                                     execução do código com soluções específicas.
     mutações              : List[str]            -- Histórico de mutações mais recentes.
@@ -78,12 +38,12 @@ class População:
     
     genes_testados = dict()
     
-    def __init__(self, indivíduos=None, probabilidade_de_mutar=0.01/100):
+    def __init__(self, indivíduos=None, probabilidade_de_mutar=0):
         if indivíduos is None:
             indivíduos = self.geração_0()
             
         self.probabilidade_de_mutar = probabilidade_de_mutar
-        self.indivíduos             = indivíduos
+        self.população              = indivíduos
         self.gerações               = [indivíduos]
         self.mutações               = []
         self.n_da_geração           = 0
@@ -107,7 +67,7 @@ class População:
         novos_indivíduos.sort(reverse=True)
         
         self.gerações.append(novos_indivíduos)
-        self.indivíduos = novos_indivíduos
+        self.população = novos_indivíduos
         
         return self
         
@@ -123,22 +83,22 @@ class População:
         """
 
         # Testa os indivíduos ainda não adaptados da população
-        for ind in self.indivíduos:
+        for ind in self.população:
             if not ind.adaptação_testada:
                 self.conseguir_adaptação(ind)
 
         # Ordena os indivíduos por adaptação decrescente e filtra a metade superior
-        indivíduos_selecionados = sorted(self.indivíduos, reverse=True)[:self.n_de_indivíduos // 2]
+        indivíduos_selecionados = sorted(self.população, reverse=True)[:self.n_de_indivíduos // 2]
 
         return indivíduos_selecionados
 
     def conseguir_adaptação(self, ind):
         """Checa se o gene do indivíduo já teve sua adaptação testada e armazena os valores já calculados."""
-        if ind.id_do_gene in self.genes_testados.keys():
-            ind.adaptação = self.genes_testados[ind.id_do_gene]
+        if ind.id in self.genes_testados.keys():
+            ind.adaptação = self.genes_testados[ind.id]
         else:
             self.testar_adaptação(ind)
-            self.genes_testados[ind.id_do_gene] = ind.adaptação
+            self.genes_testados[ind.id] = ind.adaptação
         
     def reprodução(self, inds):
         """
@@ -190,10 +150,24 @@ class População:
         pass
     
     def __repr__(self):
-        return "Geração {} de População de {} indivíduos: {}".format(self.n_da_geração, self.n_de_indivíduos, self.indivíduos)
+        return "Geração {} de População de {} indivíduos: {}".format(self.n_da_geração, self.n_de_indivíduos, self.população)
     
     def __str__(self):
         return ("População de {} indivíduos em sua geração {}:\n".format(self.n_de_indivíduos, self.n_da_geração)
-                + (self.n_de_indivíduos * "> {}\n").format(*self.indivíduos)
+                + (self.n_de_indivíduos * "> {}\n").format(*self.população)
                 + "---------Mutações---------\n"
                 + "\n".join(self.mutações))
+
+
+@dataclass(order=True)
+class Indivíduo:
+    gene: Any = field(repr=False, compare=False)
+    nome: str = field(compare=False)
+    adaptação: float = 0.0
+    adaptação_testada: bool = field(default=False, repr=False, compare=False)
+
+    def __post_init__(self):
+        self.id = self.gene
+
+    def __str__(self):
+        return f"{self.nome}: {self.adaptação}"

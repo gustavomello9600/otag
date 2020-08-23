@@ -16,7 +16,7 @@ from suporte.elementos_finitos.membrana_quadrada import Nó, Elemento, Malha
 from suporte.elementos_finitos.membrana_quadrada import resolva_para
 
 # Importa o objeto base do algoritmo genético
-from suporte.algoritmo_genético import Indivíduo, População
+from suporte.algoritmo_genético import Indivíduo, Ambiente
 
 
 virar_bit = np.vectorize(lambda b: 1 - b)
@@ -28,7 +28,7 @@ class Projeto(Indivíduo):
         return self.gene.data.tobytes()
 
 # Ensina ao Python como trabalhar com Populações de Projetos
-class População_de_Projetos(População):
+class População_de_Projetos(Ambiente):
 
     genes_úteis_testados = dict()
 
@@ -112,7 +112,7 @@ class População_de_Projetos(População):
         return Projeto(gene_novo, "G{}_{}".format(self.n_da_geração, índice))
     
     def mutação(self, g):
-        Médias   = sum([ind.gene for ind in self.indivíduos])/self.n_de_indivíduos
+        Médias   = sum([ind.gene for ind in self.população]) / self.n_de_indivíduos
         Médias_2 = Médias ** 2
 
         for ind in g:

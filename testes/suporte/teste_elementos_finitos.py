@@ -1,14 +1,23 @@
 from suporte.elementos_finitos import *
 
 
-def teste_monitorar():
+def teste_Nó():
 
-    res = Problema(dict())
+    nó_1 = Nó(2, 1)
+    nó_2 = Nó(2, 0.5)
 
-    res.resolver_para(dict(), list(), monitorar=True)
+    assert nó_1 != nó_2
 
-    assert isinstance(res, Problema)
+    nó_3 = Nó(2, 1)
+    nó_4 = Nó(2, 0.9999999)
+
+    assert nó_3 != nó_4
+
+    nó_5 = Nó(2, 1)
+    nó_6 = Nó(2, 0.99999999999)
+
+    assert nó_5 == nó_6
 
 
 if __name__ == "__main__":
-    teste_monitorar()
+    teste_Nó()

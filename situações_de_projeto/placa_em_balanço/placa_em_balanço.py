@@ -27,13 +27,11 @@ from copy import copy
 from random import choice, shuffle
 
 import numpy as np
-import scipy.cluster.hierarchy as sch
-from scipy.sparse import csr_matrix
 
-from suporte.elementos_finitos.membrana_quadrada import K_base, MembranaQuadrada
-from suporte.elementos_finitos.definição_de_problema import Problema
-from suporte.algoritmo_genético import Indivíduo, População
 from suporte.elementos_finitos import Nó, Malha
+from suporte.algoritmo_genético import Indivíduo, Ambiente
+from suporte.elementos_finitos.definição_de_problema import Problema
+from suporte.elementos_finitos.membrana_quadrada import K_base, MembranaQuadrada
 
 
 DESLOCAMENTO_LIMITE_DO_MATERIAL = 0.005
@@ -49,54 +47,11 @@ CONSTANTE_DE_PENALIZAÇÃO_DA_ÁREA_DESCONECTADA        = 0.4
 CONSTANTE_DE_PENALIZAÇÃO_SOB_DESLOCAMENTO_EXCEDENTE  = 10
 
 
-class Projeto(Indivíduo):
-    """
-    Classe que carrega as propriedades de cada projeto. Herda seus principais atributos e métodos da classe Indivíduo
-    do módulo algoritmo_genético.py
-
-    Métodos Sobrescritos
-    --------------------
-    gerar_id_do_gene(self: Projeto) -> bytes
-        Gera uma representação em bytestring do gene. Útil para comparar dois indivíduos.
-
-    Propriedades
-    ------------
-    espécie: int -- Número da espécie a qual o indivíduo pertence.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super(Projeto, self).__init__(*args, **kwargs)
-        self._espécie = None
-
-    def gerar_id_do_gene(self):
-        return self.gene.data.tobytes()
-
-    # Funcionalidade em Implementação
-    @property
-    def espécie(self):
-        return self._espécie
-
-    @espécie.setter
-    def espécie(self, espécie):
-        self._espécie = espécie
-
-
-class PopulaçãoDeProjetos(População):
+class AmbienteDeProjeto(Ambiente):
     """
     Classe de objetos que agregam os indivíduos de uma população de projetos e os manipulam de acordo
-    com operadores genéticos específicos ao problema. Herda seus atributos da classe População definida em
+    com operadores genéticos específicos ao problema. Herda seus atributos da classe Ambiente definida em
     suporte.algoritmo_genético.py e tem a maior parte dos seus métodos sobrescritos aqui.
-
-    Atributos (da classe)
-    ---------------------
-    alfa_0              : Number -- Valor inicial do coeficiente que penaliza o excesso de deslocamento.
-    Dlim                : float  -- Deslocamento limite no problema em análise.
-    genes_úteis_testados: dict   -- Dicionário que armazena e recupera as adaptações dos genes já testados.
-
-    Atributos (do objeto)
-    ---------------------
-    perfis_das_espécies : dict   -- Para cada identificador de espécie, armazena e recupera seu perfil.
-    alfa                : Number -- Valor corrente do coeficiente alfa atualizado a cada geração
 
     Métodos
     -------
@@ -127,26 +82,12 @@ class PopulaçãoDeProjetos(População):
         Caminha aleatoriamente por um grafo desde o ponto de aplicação da força até uma borda.
     formar_a_partir_do(grafo: np.array((7, 14), kis: List[int], kjs: List[int]) -> gene: np.array((38, 76))
         Recupera a informação do grafo de partição do espaço de projeto para formar o gene.
-    determinar_gene_útil(gene: np.array((38, 76)), l: int) -> gene_útil: np.array((38, 76)), borda_alcançada: bool,
-                                                              elementos_finitos: List[Elemento], nós: List[Nó],
-                                                              me: np.array((8, graus_de_liberdade))
-        Executa um algoritmo de busca responsável por determinar, para um certo gene cuja expressão fenotípica é dada
-        por uma malha de elementos_finitos quadrados de lado l, a maior porção contínua de matéria satisfazendo as restrições do
-        problema, isto é, estar conectada simultaneamente ao ponto de aplicação da força e à borda.
-    adicionar_à_malha_o_elemento_em(i: int, j: int, contexto: tuple) -> None
-        Cria o elemento em i, j atualizando a matriz de correspondência entre índices globais e locais
-    remover_de(possíveis_ramificações: list, i: int, j: int) -> None
-        Caso seja uma candidata, remove a posição i, j da lista de possíveis ramificações da árvore de busca
     """
 
-    def __init__(self, indivíduos=None, probabilidade_de_mutar=0.01 / 100):
-        super(PopulaçãoDeProjetos, self).__init__(indivíduos=indivíduos,
-                                                  probabilidade_de_mutar=probabilidade_de_mutar)
+    def __init__(self, indivíduos=None, probabilidade_de_mutar=0.01/100):
+        super().__init__(indivíduos=indivíduos, probabilidade_de_mutar=probabilidade_de_mutar)
         self.placa_em_balanço = PlacaEmBalanço({"P": MAGNITUDE_DA_CARGA_APLICADA,
-                                                "n": ORDEM_DE_REFINAMENTO_DA_MALHA}, método_padrão="OptV2_denso")
-
-        # Em implementação
-        self.perfis_das_espécies = dict()
+                                                "n": ORDEM_DE_REFINAMENTO_DA_MALHA}, método_padrão="OptV2")
 
     def geração_0(self, t=4):
         """
@@ -182,7 +123,7 @@ class PopulaçãoDeProjetos(População):
             trajetória = self.caminhar_até_a_borda(i_partida=int(np.where(kis == 19)[0]), j_partida=13)
             grafo[trajetória[0], trajetória[1]] = 1
 
-            gene = self.formar_a_partir_do(grafo, kis, kjs)
+            gene = self.formar_gene_a_partir_do(grafo, kis, kjs)
 
             # Inicializa uma instância de Projeto a partir do gene, atribuindo-lhe um nome G0_x que representa
             # o X-ésimo indivíduo da geração 0, e a põe na lista de Projetos
@@ -215,7 +156,7 @@ class PopulaçãoDeProjetos(População):
                              f"{c} em {f} fatias com {t} de comprimento mínimo")
 
         # Abreviação do nome da classe usada para simplificar a chamada do método estático "distribuir"
-        pdp = PopulaçãoDeProjetos
+        pdp = AmbienteDeProjeto
 
         # Calcula os índices como o resultado da soma cumulativa do vetor que contém o comprimento de cada
         # subintervalo tomado como o comprimento mínimo somado a uma distribuição aleatória da folga
@@ -246,8 +187,8 @@ class PopulaçãoDeProjetos(População):
 
         Argumentos
         ----------
-        folga       : int  -- Tamanho da folga
-        fatias      : int  -- Número de fatias
+        folga : int -- Tamanho da folga
+        fatias: int -- Número de fatias
 
         Retorna
         -------
@@ -273,13 +214,13 @@ class PopulaçãoDeProjetos(População):
 
         Argumentos
         ----------
-        i_partida: int       -- Índice da linha do grafo onde a caminhada começa
-        j_partida: int       -- Índice da coluna do grafo onde a caminhada começa
+        i_partida: int -- Índice da linha do grafo onde a caminhada começa
+        j_partida: int -- Índice da coluna do grafo onde a caminhada começa
 
         Retorna
         -------
-        I        : List[int] -- Lista ordenada dos índices de linha de todos os nós do grafo por onde se passou
-        J        : List[int] -- Lista ordenada dos índices de coluna de todos os nós do grafo por onde se passou
+        I: List[int] -- Lista ordenada dos índices de linha de todos os nós do grafo por onde se passou
+        J: List[int] -- Lista ordenada dos índices de coluna de todos os nós do grafo por onde se passou
         """
 
         I = []
@@ -339,7 +280,7 @@ class PopulaçãoDeProjetos(População):
         return I, J
 
     @staticmethod
-    def formar_a_partir_do(grafo, kis, kjs):
+    def formar_gene_a_partir_do(grafo, kis, kjs):
         """
         Recupera a informação do grafo de partição do espaço de projeto para formar o gene.
 
@@ -363,8 +304,8 @@ class PopulaçãoDeProjetos(População):
         return gene
 
     def próxima_geração(self):
-        self.placa_em_balanço.alfa = self.placa_em_balanço.alfa_0 * (1.01 ** (self.n_da_geração))
-        super(PopulaçãoDeProjetos, self).próxima_geração()
+        self.placa_em_balanço.alfa = self.placa_em_balanço.alfa_0 * (1.01 ** self.n_da_geração)
+        super().próxima_geração()
 
     def crossover(self, p1, p2, índice):
         """
@@ -438,7 +379,7 @@ class PopulaçãoDeProjetos(População):
         """
 
         # Obtém a média, e a média ao quadrado, de cada bit na população
-        Médias = sum([ind.gene for ind in self.indivíduos]) / self.n_de_indivíduos
+        Médias = sum([ind.gene for ind in self.população]) / self.n_de_indivíduos
         Médias_2 = Médias ** 2
 
         for ind in nova_geração:
@@ -469,7 +410,38 @@ class PopulaçãoDeProjetos(População):
         self.placa_em_balanço.testar_adaptação(ind)
 
 
+class Projeto(Indivíduo):
+    """
+    Classe que carrega as propriedades de cada projeto. Herda seus principais atributos e métodos da classe Indivíduo
+    do módulo algoritmo_genético.py
+
+    Métodos Sobrescritos
+    --------------------
+    gerar_id_do_gene(self: Projeto) -> bytes
+        Gera uma representação em bytestring do gene. Útil para comparar dois indivíduos.
+    """
+
+    def __post_init__(self):
+        self.id = self.gene.data.tobytes()
+
+
 class PlacaEmBalanço(Problema):
+    """
+    Implementação do problema da Placa em Balanço 2x1
+
+    Métodos
+    -------
+    determinar_gene_útil(gene: np.array((38, 76)), l: int) -> gene_útil: np.array((38, 76)), borda_alcançada: bool,
+                                                              elementos: List[Elemento], nós: List[Nó],
+                                                              me: np.array((8, ne))
+        Executa um algoritmo de busca responsável por determinar, para um certo gene cuja expressão fenotípica é dada
+        por uma malha de elementos quadrados de lado l, a maior porção contínua de matéria satisfazendo as restrições do
+        problema, isto é, estar conectada simultaneamente ao ponto de aplicação da força e à borda.
+    adicionar_à_malha_o_elemento_em(i: int, j: int, contexto: tuple) -> None
+        Cria o elemento em i, j atualizando a matriz de correspondência entre índices globais e locais.
+    remover_de(possíveis_ramificações: list, i: int, j: int) -> None
+        Caso seja uma candidata, remove a posição i, j da lista de possíveis ramificações da árvore de busca.
+    """
 
     fenótipos_testados = dict()
 
@@ -486,10 +458,7 @@ class PlacaEmBalanço(Problema):
         self._montador_do = {"expansão": self.montador_expansão,
                              "compacto": self.montador_compacto,
                              "OptV1": self.montador_OptV1,
-                             "OptV2": self.montador_OptV2,
-                             "OptV2_denso": self.montador_OptV2_denso}
-
-        print("Classe Nó incrementada com novo método")
+                             "OptV2": self.montador_OptV2}
 
     # Métodos que recebem um indivíduo e retornam sua adaptação
     def testar_adaptação(self, ind):
@@ -560,10 +529,10 @@ class PlacaEmBalanço(Problema):
     def determinar_fenótipo(gene, l):
         """
         Executa um algoritmo de busca responsável por determinar, para um certo gene cuja expressão fenotípica é dada
-        por uma malha de elementos_finitos quadrados de lado l, a maior porção contínua de matéria satisfazendo as restrições do
-        problema, isto é, estar conectada simultaneamente ao ponto de aplicação da força e à borda.
+        por uma malha de elementos_finitos quadrados de lado l, a maior porção contínua de matéria satisfazendo as res-
+        trições do problema, isto é, estar conectada simultaneamente ao ponto de aplicação da força e à borda.
 
-        Também cuida de inicializar a malha correspondente à expressão fenotípica do gene e seus respectivos elementos_finitos e
+        Também cuida de inicializar a malha correspondente à expressão fenotípica do gene e seus respectivos elementos e
         nós. Embora ter uma função que lide com tantas operações ao mesmo tempo não seja o padrão de programação
         recomendável na maioria dos casos, aqui se justifica pelo ganho em performance.
 
@@ -576,10 +545,10 @@ class PlacaEmBalanço(Problema):
         -------
         gene_útil      : np.array((38, 76)) -- Matriz binária que carrega a porção do gene que forma o fenótipo
         borda_alcançada: bool               -- O fenótipo se estende desde o ponto de aplicação da carga até a borda?
-        elementos_finitos      : list               -- Lista de Elementos que compõem a malha
+        elementos      : list               -- Lista de Elementos que compõem a malha
         nós            : list               -- Lista de Nós que compõem a malha
         me             : np.array(( 8, ne)) -- Matriz de correspondência entre os índices locais e globais de cada grau
-                                               de liberdade (gsdl = graus de liberdade)
+                                               de liberdade
         """
         gene_útil = np.zeros((38, 76), dtype=bool)
 
@@ -695,7 +664,7 @@ class PlacaEmBalanço(Problema):
             else:
                 buscando = False
 
-        # Inicializa os dados em matriz
+        # Transforma a lista de tuplas em matriz
         me = np.array(me, dtype="int16").T
 
         return gene_útil, borda_alcançada, elementos, nós, me
@@ -828,39 +797,19 @@ class PlacaEmBalanço(Problema):
 
     @staticmethod
     def montador_OptV1(malha, Ke, graus_de_liberdade):
-        D = np.zeros(64 * malha.ne)
-        I = np.zeros(64 * malha.ne, dtype="int32")
-        J = np.zeros(64 * malha.ne, dtype="int32")
-        d = 0
+        K = np.empty((graus_de_liberdade, graus_de_liberdade), dtype=float)
 
         índices_de_Ke_por_elemento = ((e, i, j) for e in range(malha.ne)
                                                 for i in range(8)
                                                 for j in range(8))
 
         for d, (e, i, j) in enumerate(índices_de_Ke_por_elemento):
-            I[d] = malha.me[i][e]
-            J[d] = malha.me[j][e]
-            D[d] = Ke[i][j]
+            K[malha.me[i][e], malha.me[j][e]] = Ke[i][j]
 
-        return csr_matrix((D, (I, J)), shape=(graus_de_liberdade, graus_de_liberdade)).toarray()
+        return K
 
     @staticmethod
     def montador_OptV2(malha, Ke, graus_de_liberdade):
-        D = np.zeros((64, malha.ne), dtype=float)
-        I = np.zeros((64, malha.ne), dtype="int32")
-        J = np.zeros((64, malha.ne), dtype="int32")
-
-        índices_de_Ke = ((i, j) for i in range(8) for j in range(8))
-
-        for d, (i, j) in enumerate(índices_de_Ke):
-            D[d, :] = np.repeat(Ke[i, j], malha.ne)
-            I[d, :] = malha.me[i, :]
-            J[d, :] = malha.me[j, :]
-
-        return csr_matrix((D.flat, (I.flat, J.flat)), shape=(graus_de_liberdade, graus_de_liberdade)).toarray()
-
-    @staticmethod
-    def montador_OptV2_denso(malha, Ke, graus_de_liberdade):
         K = np.empty((graus_de_liberdade, graus_de_liberdade), dtype=float)
 
         índices_de_Ke = ((i, j) for i in range(8) for j in range(8))
@@ -894,31 +843,3 @@ class PlacaEmBalanço(Problema):
         iuc = índices_onde_u_é_conhecido = np.where(~np.isnan(u))[0]
 
         return f, u, ifc, iuc
-
-
-# TODO Implementação primitiva de um classificador de espécies
-def implementar_dentro():
-    def do_método_seleção_natural(self):
-        if self.perfis_das_espécies is None:
-            indivíduos_selecionados = sorted(self.indivíduos, reverse=True)[:self.n_de_indivíduos // 2]
-
-            genes = np.array([ind.gene.flatten() for ind in indivíduos_selecionados])
-
-            rede_de_conexões = sch.linkage(genes, metric="correlation")
-            espécies_dos_genes = sch.fcluster(rede_de_conexões, t=0.3, criterion="distance")
-            espécies_iniciais = único(espécies_dos_genes)
-
-            self.perfis_das_espécies = []
-            for espécie in espécies_iniciais:
-                genes_da_espécie = genes[espécies_dos_genes == espécie, :]
-                perfil_da_espécie = np.mean(genes_da_espécie, axis=0)
-                self.perfis_das_espécies[espécie] = perfil_da_espécie
-
-            for i in range(len(indivíduos_selecionados)):
-                indivíduos_selecionados[i].definir_espécie(espécies_dos_genes[i])
-
-
-def único(vetor):
-    """Retorna um vetor com os valores únicos do vetor original de forma ordenada"""
-    _, índice = np.unique(vetor, return_index=True)
-    return vetor[np.sort(índice)]

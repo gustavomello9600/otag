@@ -37,6 +37,11 @@ class Problema:
 
             return monitorador
 
+    # Implementação do algoritmo construtor e testador de genótipos
+    def testar_adaptação(self, indivíduo):
+        pass
+
+    # Implementação da análise por elementos finitos
     def resolver_para(self, parâmetros_dos_elementos, malha, método=None, monitorar=False):
         self.configurar_monitoramento(monitorar)
 
