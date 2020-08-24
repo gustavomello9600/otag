@@ -86,8 +86,8 @@ class AmbienteDeProjeto(Ambiente):
 
     def __init__(self, indivíduos=None, probabilidade_de_mutar=0.01/100):
         super().__init__(indivíduos=indivíduos, probabilidade_de_mutar=probabilidade_de_mutar)
-        self.placa_em_balanço = PlacaEmBalanço({"P": MAGNITUDE_DA_CARGA_APLICADA,
-                                                "n": ORDEM_DE_REFINAMENTO_DA_MALHA}, método_padrão="OptV2")
+        self.problema = PlacaEmBalanço({"P": MAGNITUDE_DA_CARGA_APLICADA,
+                                        "n": ORDEM_DE_REFINAMENTO_DA_MALHA}, método_padrão="OptV2")
 
     def geração_0(self, t=4):
         """
@@ -304,7 +304,7 @@ class AmbienteDeProjeto(Ambiente):
         return gene
 
     def próxima_geração(self):
-        self.placa_em_balanço.alfa = self.placa_em_balanço.alfa_0 * (1.01 ** self.n_da_geração)
+        self.problema.alfa = self.problema.alfa_0 * (1.01 ** self.n_da_geração)
         super().próxima_geração()
 
     def crossover(self, p1, p2, índice):
@@ -407,7 +407,7 @@ class AmbienteDeProjeto(Ambiente):
         None
         """
 
-        self.placa_em_balanço.testar_adaptação(ind)
+        self.problema.testar_adaptação(ind)
 
 
 class Projeto(Indivíduo):
@@ -720,7 +720,7 @@ class PlacaEmBalanço(Problema):
 
         # Cria um elemento com os cantos e o adiciona
         # à lista daqueles que comporão a malha
-        elementos.append(MembranaQuadrada([ul, ur, dr, dl]))
+        elementos.append(MembranaQuadrada((ul, ur, dr, dl)))
 
     @staticmethod
     def remover_de(possíveis_ramificações, i, j):

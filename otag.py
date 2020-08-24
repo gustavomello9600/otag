@@ -6,8 +6,8 @@ from random import seed, getstate, setstate
 
 import numpy as np
 import pandas as pd
-from matplotlib.pyplot import imshow, plot, colorbar, show, legend, clf, savefig
 
+from visualizador.placa_em_balanço import mostrar_projeto
 from situações_de_projeto.placa_em_balanço.placa_em_balanço import AmbienteDeProjeto
 
 os.chdir(Path(__file__).parent)
@@ -53,8 +53,7 @@ def mudar_semente(sem):
 
 def execução_completa():
     for semente in range(10 + 1):
-        pop = execução_típica(n=300, semente=semente)
-        salvar_resultado(pop)
+        amb = execução_típica(n=300, semente=semente)
 
 
 def execução_típica(n=100, amb=None, semente=0):
@@ -70,10 +69,10 @@ def execução_típica(n=100, amb=None, semente=0):
         if k % 10 == 0:
             filtrar_informações(amb)
 
-        if k < 100 and k % 10 == 0:
+        if k % 100 == 0:
             salvar_estado(amb)
-        elif k % 100 == 0:
-            salvar_estado(amb)
+
+    salvar_resultado(amb)
 
     if retornar:
         return amb
@@ -113,18 +112,19 @@ def salvar_resultado(amb):
     try:
         tabela = pd.read_csv(caminho / "comparação_de_resultados.csv")
     except FileNotFoundError:
+        caminho.mkdir(parents=True, exist_ok=True)
         tabela = pd.DataFrame(columns=["Semente", "Gerações", "Indivíduo_mais_apto",
                                        "Adaptação", "Índice_de_Convergência", "alfa_0", "e"])
 
     sem  = semente
     ger  = amb.n_da_geração
-    prj  = amb.indivíduos[0]
+    prj  = amb.população[0]
     ima  = prj.nome
     adpt = prj.adaptação
-    alfa = amb.alfa_0
+    alfa = amb.problema.alfa_0
     edes = 0.4
 
-    conv   = sum([ind.gene for ind in amb.indivíduos]) / 100
+    conv   = sum([ind.gene for ind in amb.população]) / 100
     m_conv = np.vectorize(lambda x: 4 * (x ** 2) - 4 * x + 1)
     idc    = sum(m_conv(conv).flat) / len(conv.flat)
 
@@ -140,13 +140,7 @@ def salvar_resultado(amb):
     tabela.drop_duplicates(inplace=True)
     tabela.to_csv(caminho / "comparação_de_resultados.csv", index=False)
 
-    imshow(~prj.gene, cmap="hot")
-    savefig(caminho / ("gene_sem{}_{}.png".format(sem, prj.nome)), dpi=200)
-    clf()
-
-    prj.malha.plot(prj.u, show=False)
-    savefig(caminho / ("malha_sem{}_{}.png".format(sem, prj.nome)), dpi=200)
-    clf()
+    mostrar_projeto(prj, arquivo=(caminho / f"semente_{sem}.png"))
 
 
 def ciclo_de_(n, amb):

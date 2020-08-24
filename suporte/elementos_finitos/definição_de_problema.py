@@ -12,6 +12,7 @@ class Problema:
 
         self._monitoramento_ativo = False
         self._início_do_monitoramento = None
+        self._última_medição = None
 
     class Monitorador:
 

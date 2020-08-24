@@ -5,13 +5,17 @@ from suporte.elementos_finitos import Elemento, KeBase
 
 class MembranaQuadrada(Elemento):
 
-    def traçar_bordas(self):
-        """Cria um atributo de bordas como uma tupla de duplas de Nós que compartilham lados"""
-        self.bordas = tuple({nó, self.nós[i + 1 if i < 3 else 0]} for i, nó in enumerate(self.nós))
+    def __init__(self, nós):
+        super().__init__(nós)
+        self.bordas = self.traçar_bordas()
 
-    def __repr__(self):
-        borda_superior = "{} — {}".format(self.nós[0], self.nós[1])
-        borda_inferior = "{} — {}".format(self.nós[3], self.nós[2])
+    def traçar_bordas(self):
+        """Cria um atributo de bordas como uma tupla de conjuntos imutáveis de Nós que compartilham lados"""
+        return tuple(frozenset([nó, self.nós[i + 1 if i < 3 else 0]]) for i, nó in enumerate(self.nós))
+
+    def __str__(self):
+        borda_superior = f"({self.nós[0].x}, {self.nós[0].y}) — ({self.nós[1].x}, {self.nós[1].y})"
+        borda_inferior = f"({self.nós[3].x}, {self.nós[3].y}) — ({self.nós[2].x}, {self.nós[2].y})"
         meio = "|" + (max([len(borda_superior), len(borda_inferior)]) - 2) * " " + "|"
         return "\n".join([borda_superior, meio, borda_inferior])
 
