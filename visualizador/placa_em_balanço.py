@@ -38,7 +38,7 @@ def mostrar_projeto(proj,  k=1, arquivo=None):
 
     fig.set_tight_layout(True)
 
-    if not arquivo:
+    if arquivo is None:
         plt.show()
 
     else:

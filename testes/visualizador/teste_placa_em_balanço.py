@@ -1,7 +1,8 @@
 from otag import carregar_estado
 from visualizador.placa_em_balanço import *
 
-amb  = carregar_estado(geração=20)
+
+amb  = carregar_estado(geração=1)
 proj = amb.população[0]
 
 

@@ -797,25 +797,25 @@ class PlacaEmBalanço(Problema):
 
     @staticmethod
     def montador_OptV1(malha, Ke, graus_de_liberdade):
-        K = np.empty((graus_de_liberdade, graus_de_liberdade), dtype=float)
+        K = np.zeros((graus_de_liberdade, graus_de_liberdade), dtype=float)
 
         índices_de_Ke_por_elemento = ((e, i, j) for e in range(malha.ne)
                                                 for i in range(8)
                                                 for j in range(8))
 
         for d, (e, i, j) in enumerate(índices_de_Ke_por_elemento):
-            K[malha.me[i][e], malha.me[j][e]] = Ke[i][j]
+            K[malha.me[i][e], malha.me[j][e]] += Ke[i][j]
 
         return K
 
     @staticmethod
     def montador_OptV2(malha, Ke, graus_de_liberdade):
-        K = np.empty((graus_de_liberdade, graus_de_liberdade), dtype=float)
+        K = np.zeros((graus_de_liberdade, graus_de_liberdade), dtype=float)
 
         índices_de_Ke = ((i, j) for i in range(8) for j in range(8))
 
         for i, j in índices_de_Ke:
-            K[malha.me[i, :], malha.me[j, :]] = Ke[i, j]
+            K[malha.me[i, :], malha.me[j, :]] += Ke[i, j]
 
         return K
 
@@ -832,11 +832,11 @@ class PlacaEmBalanço(Problema):
             except ValueError:
                 continue
             i2 = i1 + 1
-            u[i1:(i2 + 1)] = 0
-            f[i1:(i2 + 1)] = np.nan
+            u[[i1, i2]] = 0
+            f[[i1, i2]] = np.nan
 
         # Condições de Contorno em f
-        gdl_P = grau_de_liberdade_associado_a_P = malha.nós.index(Nó(2, 0.5)) * 2 + 1
+        gdl_P = grau_de_liberdade_associado_a_P = malha.nós.index(Nó(2, 0.5))*2 + 1
         f[gdl_P] = -P
 
         ifc = índices_onde_f_é_conhecido = np.where(~np.isnan(f))[0]
