@@ -560,7 +560,8 @@ class PlacaEmBalanço(Problema):
         nós = []
         me = []
 
-        # Inicializa listas auxiliares que ajudam a manter curso dos índices dos nós
+        # Inicializa listas auxiliares que ajudam a manter curso dos índices dos nós e elementos
+        etiquetas_de_elementos_já_construídos = set()
         etiquetas_de_nós_já_construídos = set()
         índice_na_malha = dict()
 
@@ -573,7 +574,8 @@ class PlacaEmBalanço(Problema):
         subida = False
 
         # Junta as variáveis importantes para métodos auxiliares
-        contexto = l, gene_útil, elementos, nós, me, etiquetas_de_nós_já_construídos, índice_na_malha
+        contexto = l, gene_útil, elementos, nós, me, etiquetas_de_nós_já_construídos,\
+                   etiquetas_de_elementos_já_construídos, índice_na_malha
 
         # Simplifica a chamada de métodos auxiliares
         peb = PlacaEmBalanço
@@ -672,7 +674,8 @@ class PlacaEmBalanço(Problema):
     @staticmethod
     def adicionar_à_malha_o_elemento_em(i, j, contexto=tuple()):
         # Recebe o contexto
-        l, gene_útil, elementos, nós, me, etiquetas_de_nós_já_construídos, índice_na_malha = contexto
+        l, gene_útil, elementos, nós, me, etiquetas_de_nós_já_construídos,\
+        etiquetas_de_elementos_já_construídos, índice_na_malha               = contexto
 
         # Marca a posição como pertencente ao gene útil
         gene_útil[i][j] = True
@@ -720,7 +723,9 @@ class PlacaEmBalanço(Problema):
 
         # Cria um elemento com os cantos e o adiciona
         # à lista daqueles que comporão a malha
-        elementos.append(MembranaQuadrada((ul, ur, dr, dl)))
+        if ul.etiqueta not in etiquetas_de_elementos_já_construídos:
+            elementos.append(MembranaQuadrada((ul, ur, dr, dl)))
+            etiquetas_de_elementos_já_construídos.add(ul.etiqueta)
 
     @staticmethod
     def remover_de(possíveis_ramificações, i, j):
