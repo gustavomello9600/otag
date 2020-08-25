@@ -58,7 +58,7 @@ class KeBase:
     def calcular(self, valor_de):
         parâmetros = valor_de.keys()
         correspondência = {self.símbolo_de[p]: valor_de[p] for p in parâmetros}
-        return np.array(self.matriz.evalf(subs=correspondência))
+        return np.array(self.matriz.evalf(subs=correspondência), dtype=float)
 
     @classmethod
     def pronta(cls, cache="Ke_genérica.b"):
