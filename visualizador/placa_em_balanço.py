@@ -95,7 +95,7 @@ def plotar_gene(proj, gráfico):
     gráfico.imshow(~proj.gene, cmap="hot")
 
 
-def plotar_com_cores(proj, k=1, paleta="magma"):
+def plotar_malha_com_cores(proj, k=1, paleta="magma"):
     quadro = np.zeros((720, 1440))
     for e, elemento in enumerate(proj.malha.elementos):
         is_nós = proj.malha.me[::2, e] // 2

@@ -54,7 +54,7 @@ class Problema:
 
         f, u, ifc, iuc = self.incorporar_condições_de_contorno(malha,
                                                                graus_de_liberdade,
-                                                               **self.parâmetros_do_problema)
+                                                               self.parâmetros_do_problema)
 
         # Lógica de determinação de f e u
         Kfc = self.onde_f_é_conhecido_fatiar(K, ifc)

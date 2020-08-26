@@ -1,5 +1,7 @@
 import os
+import json
 import pickle
+from copy import deepcopy
 from pathlib import Path
 from importlib import import_module
 from random import seed, getstate, setstate
@@ -8,39 +10,92 @@ import numpy as np
 import pandas as pd
 
 from visualizador.placa_em_balanço import mostrar_projeto
-from situações_de_projeto.placa_em_balanço.placa_em_balanço import AmbienteDeProjeto
 
-os.chdir(Path(__file__).parent)
+raiz = Path(__file__).parent
 
 semente = 0
 info_gerações = []
+
 situação_de_projeto = "placa_em_balanço"
+parâmetros = "padrão.json"
+ambiente   = "Kane_&_Schoenauer.py"
+problema   = "P_no_meio_da_extremidade_direita.py"
 
+def interativo(padrão=False, execução_longa=False):
+    if not padrão:
+        global situação_de_projeto, parâmetros, ambiente, problema
 
-def mudar_situação_de_projeto(situação=None):
-    if situação is None:
-        situações = os.listdir("situações_de_projeto")
+        situações = os.listdir(raiz / "situações_de_projeto")
         opções = [f"  {i + 1}. {_casos_mistos(sit)}" for i, sit in enumerate(situações)]
         print("> Escolha uma situação de projeto")
-        for i, opção in enumerate(opções):
+        for opção in opções:
             print(opção)
-        opt = int(input("> Escolha uma opção:")) - 1
-        situação = situações[opt]
+        optada = int(input("> Escolha uma opção:")) - 1
 
-    sdp = import_module("situações_de_projeto." + situação + "." + situação)
+        situação_de_projeto = situações[optada]
 
-    global situação_de_projeto
-    situação_de_projeto = situação
+        possíveis_parâmetros = os.listdir(raiz / "situações_de_projeto" / situação_de_projeto / "parâmetros")
+        opções = [f"  {i + 1}. {_casos_mistos(sit)}"[:-5] for i, sit in enumerate(possíveis_parâmetros)]
+        print("> Escolha os parâmetros do problema")
+        for opção in opções:
+            print(opção)
+        optada = int(input("> Escolha uma opção:")) - 1
 
-    global AmbienteDeProjeto
-    AmbienteDeProjeto = sdp.AmbienteDeProjeto
+        parâmetros = possíveis_parâmetros[optada]
+
+        problemas = os.listdir(raiz / "situações_de_projeto" / situação_de_projeto / "problemas")
+        opções = [f"  {i + 1}. {_casos_mistos(sit)}"[:-3] for i, sit in enumerate(problemas)]
+        print("> Escolha a definição do problema")
+        for opção in opções:
+            print(opção)
+        optada = int(input("> Escolha uma opção:")) - 1
+
+        problema = problemas[optada]
+
+        ambientes = os.listdir(raiz / "situações_de_projeto" / situação_de_projeto / "ambientes")
+        opções = [f"  {i + 1}. {_casos_mistos(sit)}"[:-3] for i, sit in enumerate(ambientes)]
+        print("> Escolha o ambiente de projeto")
+        for opção in opções:
+            print(opção)
+        optada = int(input("> Escolha uma opção:")) - 1
+
+        ambiente = ambientes[optada]
+
+    with open(raiz / "situações_de_projeto" / situação_de_projeto / "parâmetros" / parâmetros) as arquivo:
+        parâmetros_do_problema = json.load(arquivo)
+    processar(parâmetros_do_problema)
+
+    módulo_do_problema = import_module(f"situações_de_projeto.{situação_de_projeto}.problemas.{problema[:-3]}")
+    ProblemaDefinido = getattr(módulo_do_problema, "".join(p.capitalize() for p in situação_de_projeto.split("_")))
+
+    módulo_do_ambiente = import_module(f"situações_de_projeto.{situação_de_projeto}.ambientes.{ambiente[:-3]}")
+    AmbienteDeProjeto = getattr(módulo_do_ambiente, "AmbienteDeProjeto")
+
+    amb = AmbienteDeProjeto(ProblemaDefinido(parâmetros_do_problema))
+
+    if execução_longa:
+        execução_completa(amb)
+
+    else:
+        execução_típica(5, amb)
+
+
+def processar(parâmetros_do_problema):
+    for k, v in parâmetros_do_problema.items():
+        if v[0] not in "0123456789":
+            continue
+        elif "." in v or "e" in v:
+            parâmetros_do_problema[k] = float(v)
+        else:
+            parâmetros_do_problema[k] = int(v)
+
 
 
 _exceções = ["em", "de", "do", "da", "no", "na"]
-def _casos_mistos(s):
+def _casos_mistos(s, reunir=" "):
     palavras = s.split("_")
     palavras = [p.capitalize() if p not in _exceções else p for p in palavras]
-    return " ".join(palavras)
+    return reunir.join(palavras)
 
 
 def mudar_semente(sem):
@@ -51,18 +106,12 @@ def mudar_semente(sem):
     semente = sem
 
 
-def execução_completa():
+def execução_completa(amb):
     for semente in range(10 + 1):
-        amb = execução_típica(n=300, semente=semente)
+        execução_típica(300, deepcopy(amb), semente=semente)
 
 
-def execução_típica(n=100, amb=None, semente=0):
-    retornar = False
-    if amb is None:
-        retornar = True
-        mudar_semente(semente)
-        amb = AmbienteDeProjeto()
-
+def execução_típica(n, amb, semente=0):
     for k in range(amb.n_da_geração, amb.n_da_geração + n):
         amb.próxima_geração()
 
@@ -74,8 +123,7 @@ def execução_típica(n=100, amb=None, semente=0):
 
     salvar_resultado(amb)
 
-    if retornar:
-        return amb
+    return amb
 
 
 def filtrar_informações(amb):
@@ -87,10 +135,10 @@ def filtrar_informações(amb):
 
 
 def salvar_estado(amb):
-    raiz = Path.cwd() / "situações_de_projeto" / situação_de_projeto
+    pasta_da_situação = raiz / "situações_de_projeto" / situação_de_projeto
     pasta_da_semente = "semente_{}".format(semente)
     pasta_da_geração = "geração_{}".format(amb.n_da_geração)
-    caminho          = raiz / "dados" / pasta_da_semente / pasta_da_geração
+    caminho          = pasta_da_situação / "dados" / f"{ambiente}__{problema}" / pasta_da_semente / pasta_da_geração
 
     caminho.mkdir(parents=True, exist_ok=True)
 
@@ -107,7 +155,9 @@ def salvar_estado(amb):
 def salvar_resultado(amb):
     salvar_estado(amb)
 
-    caminho = Path.cwd() / "situações_de_projeto" / situação_de_projeto / "resultados"
+    caminho = raiz / "situações_de_projeto" / situação_de_projeto / "resultados" / f"{ambiente}__{problema}"
+
+    caminho.mkdir(parents=True, exist_ok=True)
 
     try:
         tabela = pd.read_csv(caminho / "comparação_de_resultados.csv")
@@ -150,10 +200,10 @@ def ciclo_de_(n, amb):
 
 
 def carregar_estado(semente=0, geração=1):
-    raiz = Path.cwd() / "situações_de_projeto" / situação_de_projeto
+    pasta_da_situação = raiz / "situações_de_projeto" / situação_de_projeto
     pasta_da_semente = "semente_{}".format(semente)
     pasta_da_geração = "geração_{}".format(geração)
-    caminho = raiz / "dados" / pasta_da_semente / pasta_da_geração
+    caminho = pasta_da_situação / "dados" / f"{ambiente}__{problema}" / pasta_da_semente / pasta_da_geração
 
     try:
         with open(caminho / "população.b", "rb") as backup:

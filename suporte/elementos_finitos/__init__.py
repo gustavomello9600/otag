@@ -1,7 +1,7 @@
 import pickle
-from typing import Any, Tuple, FrozenSet
-from pathlib import Path
 from math import isclose
+from pathlib import Path
+from typing import Any, Tuple, List
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -31,8 +31,8 @@ class Elemento:
 @dataclass
 class Malha:
 
-    elementos: Tuple[Elemento]
-    nós: Tuple[Nó]
+    elementos: List[Elemento]
+    nós: List[Nó]
     me: ArrayLike
 
     def __post_init__(self):
