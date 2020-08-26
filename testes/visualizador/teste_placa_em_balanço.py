@@ -10,5 +10,9 @@ def teste_mostrar_projeto(k=1):
     mostrar_projeto(proj, k=k)
 
 
+def teste_plotar_com_cores(k=1, paleta="magma"):
+    plotar_com_cores(proj, k=k, paleta=paleta)
+
+
 if __name__ == "__main__":
-    teste_mostrar_projeto(300)
+    teste_plotar_com_cores(0, paleta="plasma")

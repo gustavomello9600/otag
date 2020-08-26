@@ -93,3 +93,41 @@ def união_de(bordas, lados_internos):
 
 def plotar_gene(proj, gráfico):
     gráfico.imshow(~proj.gene, cmap="hot")
+
+
+def plotar_com_cores(proj, k=1, paleta="magma"):
+    quadro = np.zeros((720, 1440))
+    for e, elemento in enumerate(proj.malha.elementos):
+        is_nós = proj.malha.me[::2, e] // 2
+
+        xs_nós = [nó.x for nó in elemento.nós]
+        ys_nós = [nó.y for nó in elemento.nós]
+
+        dxs_nós = [proj.u[2*i] for i in is_nós]
+        dys_nós = [proj.u[2*i + 1] for i in is_nós]
+
+        xs_pontos = np.tile(np.linspace(xs_nós[0], xs_nós[1], 21), (21, 1))
+        ys_pontos = np.tile(np.linspace(ys_nós[0], ys_nós[3], 21), (21, 1)).T
+
+        qsis = np.tile(np.linspace(-1, 1, 21), (21, 1))
+        etas = -qsis.T
+
+        dxs_pontos = (dxs_nós[0] * (((1 - qsis)*(1 + etas))/4)
+                      + dxs_nós[1] * (((1 + qsis)*(1 + etas))/4)
+                      + dxs_nós[2] * (((1 + qsis)*(1 - etas))/4)
+                      + dxs_nós[3] * (((1 - qsis)*(1 - etas))/4))
+        dys_pontos = (dys_nós[0] * (((1 - qsis) * (1 + etas)) / 4)
+                      + dys_nós[1] * (((1 + qsis) * (1 + etas)) / 4)
+                      + dys_nós[2] * (((1 + qsis) * (1 - etas)) / 4)
+                      + dys_nós[3] * (((1 - qsis) * (1 - etas)) / 4))
+
+        d_pontos = np.sqrt(dxs_pontos**2 + dys_pontos**2)
+
+        I = np.rint(720*(1 - (ys_pontos + k*dys_pontos))) - 1
+        J = np.rint(720*(xs_pontos + k*dxs_pontos)) - 1
+
+        quadro[I.astype(int).flatten(), J.astype(int).flatten()] = 0.002 + d_pontos.flatten()
+
+    plt.imshow(quadro, cmap=paleta, interpolation="none")
+    plt.colorbar()
+    plt.show()
