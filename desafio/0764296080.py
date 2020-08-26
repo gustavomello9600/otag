@@ -47,7 +47,7 @@ def crossover_b(pai_1, pai_2):
     return filho_1, filho_2
 
 
-# Define o número de elementos da malha em cada direção
+# Define o número de elementos_finitos da malha em cada direção
 nelx = 120
 nely = 40
 
