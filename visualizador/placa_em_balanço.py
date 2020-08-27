@@ -53,7 +53,7 @@ def plotar_malha(proj, gráfico, k=1):
     # A premissa aqui é que o vetor u tem a mesma ordem dos nós na lista malha.nós
     for lado in união_de(bordas, lados_internos):
         v0, v1 = tuple(lado)
-        i0, i1 = proj.malha.índice_de(v0), proj.malha.índice_de(v1)
+        i0, i1 = proj.malha.índice_de[v0], proj.malha.índice_de[v1]
         dx0, dx1 = proj.u[2*i0], proj.u[2*i1]
         dy0, dy1 = proj.u[2*i0 + 1], proj.u[2*i1 + 1]
 

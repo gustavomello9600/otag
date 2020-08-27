@@ -21,6 +21,7 @@ parâmetros = "padrão.json"
 ambiente   = "Kane_&_Schoenauer.py"
 problema   = "P_no_meio_da_extremidade_direita.py"
 
+
 def interativo(padrão=False, execução_longa=False):
     if not padrão:
         global situação_de_projeto, parâmetros, ambiente, problema
@@ -88,7 +89,6 @@ def processar(parâmetros_do_problema):
             parâmetros_do_problema[k] = float(v)
         else:
             parâmetros_do_problema[k] = int(v)
-
 
 
 _exceções = ["em", "de", "do", "da", "no", "na"]

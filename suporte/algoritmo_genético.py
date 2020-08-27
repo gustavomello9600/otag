@@ -5,16 +5,17 @@ CLASSES
 -------
 Indivíduo
     Classe de objetos que carregam genes, elementos_finitos fenotípicos e valores de adaptação.
-População
+Ambiente
     Classe de objetos que agregam Indivíduos e definem sobre eles operadores genéticos.
 """
 from dataclasses import dataclass, field
+from abc import ABC, abstractmethod
 from typing import Any
 
 import numpy as np
 
 
-class Ambiente:
+class Ambiente(ABC):
     """
     Classe de objetos que agregam Indivíduos e definem sobre eles operadores genéticos.
 
@@ -133,19 +134,19 @@ class Ambiente:
             
         return filhos
             
-    # Sobrescrever
+    @abstractmethod
     def crossover(self, ind1, ind2, i):
         pass
     
-    # Sobrescrever
+    @abstractmethod
     def mutação(self, geração):
         pass
 
-    # Sobrescrever
+    @abstractmethod
     def testar_adaptação(self, indivíduo):
         pass
 
-    # Sobrescrever
+    @abstractmethod
     def geração_0(self):
         pass
     
@@ -161,10 +162,10 @@ class Ambiente:
 
 @dataclass(order=True)
 class Indivíduo:
-    gene: Any = field(repr=False, compare=False)
+    gene: Any = field(compare=False)
     nome: str = field(compare=False)
     adaptação: float = 0.0
-    adaptação_testada: bool = field(default=False, repr=False, compare=False)
+    adaptação_testada: bool = field(default=False, compare=False)
 
     def __post_init__(self):
         self.id = self.gene

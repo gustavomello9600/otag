@@ -42,15 +42,20 @@ class PlacaEmBalanço(Problema):
     Monitorador = Problema.Monitorador
 
     def __init__(self, parâmetros_do_problema, método_padrão=None):
-        super().__init__(parâmetros_do_problema, método_padrão)
-
+        # Inicia um cache de fenótipos
         self.fenótipos_testados = dict()
 
+        super().__init__(parâmetros_do_problema, método_padrão)
+        self.digerir(parâmetros_do_problema)
+        self.iniciar_resolvedor()
+
+    def digerir(self, parâmetros_do_problema):
         self.Dlim = parâmetros_do_problema["DESLOCAMENTO_LIMITE_DO_MATERIAL"]
-        self.lado_dos_elementos = 1/parâmetros_do_problema["ORDEM_DE_REFINAMENTO_DA_MALHA"]
+        self.lado_dos_elementos = 1 / parâmetros_do_problema["ORDEM_DE_REFINAMENTO_DA_MALHA"]
         self._método_padrão = parâmetros_do_problema["MÉTODO_PADRÃO_DE_MONTAGEM_DA_MATRIZ_DE_RIGIDEZ_GERAL"]
         self.alfa = self.alfa_0 = parâmetros_do_problema["CONSTANTE_DE_PENALIZAÇÃO_SOB_DESLOCAMENTO_EXCEDENTE"]
 
+    def iniciar_resolvedor(self):
         self.Ke = None
         self._montador_do = {"expansão": self.montador_expansão,
                              "compacto": self.montador_compacto,
@@ -269,7 +274,6 @@ class PlacaEmBalanço(Problema):
 
         return gene
 
-    # Métodos que recebem um indivíduo e retornam sua adaptação
     def testar_adaptação(self, ind):
         """
         Invoca um método que constrói o fenótipo do indivíduo, isto é, sua malha, a partir da porção útil do gene. Caso
@@ -375,7 +379,7 @@ class PlacaEmBalanço(Problema):
         índice_na_malha = dict()
 
         # Inicializa parâmetros do algoritmo de busca
-        possíveis_ramificações = []
+        possíveis_ramificações = set()
         último_movimento = "esquerda"
         borda_alcançada = False
         buscando = True
@@ -409,7 +413,7 @@ class PlacaEmBalanço(Problema):
                 if j != 75 and último_movimento != "esquerda":
                     direita = gene[i][j + 1]
                     if direita and not gene_útil[i][j + 1]:
-                        possíveis_ramificações.append((i, j + 1, "direita"))
+                        possíveis_ramificações.add((i, j + 1, "direita"))
 
                 if j == 0:
                     borda_alcançada = True
@@ -417,7 +421,7 @@ class PlacaEmBalanço(Problema):
                 if j != 0 and último_movimento != "direita":
                     esquerda = gene[i][j - 1]
                     if esquerda and not gene_útil[i][j - 1]:
-                        possíveis_ramificações.append((i, j - 1, "esquerda"))
+                        possíveis_ramificações.add((i, j - 1, "esquerda"))
 
                 peb.adicionar_à_malha_o_elemento_em(i, j, contexto=contexto)
                 peb.remover_de(possíveis_ramificações, i, j)
@@ -449,7 +453,7 @@ class PlacaEmBalanço(Problema):
                 if j != 75 and último_movimento != "esquerda":
                     direita = gene[i][j + 1]
                     if direita and not gene_útil[i][j + 1]:
-                        possíveis_ramificações.append((i, j + 1, "direita"))
+                        possíveis_ramificações.add((i, j + 1, "direita"))
 
                 if j == 0:
                     borda_alcançada = True
@@ -457,7 +461,7 @@ class PlacaEmBalanço(Problema):
                 if j != 0 and último_movimento != "direita":
                     esquerda = gene[i][j - 1]
                     if esquerda and not gene_útil[i][j - 1]:
-                        possíveis_ramificações.append((i, j - 1, "esquerda"))
+                        possíveis_ramificações.add((i, j - 1, "esquerda"))
 
                 peb.adicionar_à_malha_o_elemento_em(i, j, contexto=contexto)
                 peb.remover_de(possíveis_ramificações, i, j)
@@ -468,7 +472,7 @@ class PlacaEmBalanço(Problema):
                     último_movimento = "cima"
 
             if len(possíveis_ramificações) > 0:
-                i, j, último_movimento = possíveis_ramificações.pop(-1)
+                i, j, último_movimento = possíveis_ramificações.pop()
                 descida = True
                 subida = False
 
@@ -481,7 +485,7 @@ class PlacaEmBalanço(Problema):
         return gene_útil, borda_alcançada, elementos, nós, me
 
     @staticmethod
-    def adicionar_à_malha_o_elemento_em(i, j, contexto=tuple()):
+    def adicionar_à_malha_o_elemento_em(i, j, contexto):
         # Recebe o contexto
         l, gene_útil, elementos, nós, me, etiquetas_de_nós_já_construídos, \
         etiquetas_de_elementos_já_construídos, índice_na_malha               = contexto
@@ -491,10 +495,10 @@ class PlacaEmBalanço(Problema):
 
         # Inicializa os nós dos cantos do elemento
         y = 1 - i * l
-        ul, ur, dr, dl = Nó(j * l, y, etiqueta=(i, j)), \
-                         Nó((j + 1) * l, y, etiqueta=(i, j + 1)), \
-                         Nó((j + 1) * l, y - l, etiqueta=(i + 1, j + 1)), \
-                         Nó(j * l, y - l, etiqueta=(i + 1, j))
+        ul, ur, dr, dl = Nó(      j*l,     y, etiqueta=(    i,     j)), \
+                         Nó((j + 1)*l,     y, etiqueta=(    i, j + 1)), \
+                         Nó((j + 1)*l, y - l, etiqueta=(i + 1, j + 1)), \
+                         Nó(      j*l, y - l, etiqueta=(i + 1,     j))
 
         índices_globais_dos_cantos = []
 
@@ -538,13 +542,8 @@ class PlacaEmBalanço(Problema):
 
     @staticmethod
     def remover_de(possíveis_ramificações, i, j):
-        try:
-            possíveis_ramificações.remove((i, j, "esquerda"))
-        except ValueError:
-            try:
-                possíveis_ramificações.remove((i, j, "direita"))
-            except ValueError:
-                pass
+        possíveis_ramificações.discard((i, j, "esquerda"))
+        possíveis_ramificações.discard((i, j, "direita"))
 
     # Métodos auxiliares da resolução via análise de elementos finitos
     @Monitorador(mensagem="Total de graus de liberdade determinados")
@@ -576,7 +575,7 @@ class PlacaEmBalanço(Problema):
             Ke_expandido = np.zeros((graus_de_liberdade, graus_de_liberdade))
 
             índices = np.array([
-                [2 * malha.índice_de(n), 2 * malha.índice_de(n) + 1] for n in elemento.nós
+                [2 * malha.índice_de[n], 2 * malha.índice_de[n] + 1] for n in elemento.nós
             ]).flatten()
 
             for ie in range(len(índices)):
@@ -596,7 +595,7 @@ class PlacaEmBalanço(Problema):
 
         índices = dict()
         for elemento in malha.elementos:
-            índices[elemento] = np.array([[2 * malha.índice_de(n), 2 * malha.índice_de(n) + 1]
+            índices[elemento] = np.array([[2 * malha.índice_de[n], 2 * malha.índice_de[n] + 1]
                                           for n in elemento.nós]).flatten()
 
         for i in range(8):
@@ -643,13 +642,12 @@ class PlacaEmBalanço(Problema):
 
         # Condições de Contorno em u
         for i in range(n + 1):
-            try:
-                i1 = 2 * malha.nós.index(Nó(0, 1 - i / n))
-            except ValueError:
-                continue
-            i2 = i1 + 1
-            u[[i1, i2]] = 0
-            f[[i1, i2]] = np.nan
+            nó_da_borda = Nó(0, 1 - i/n, etiqueta=(i, 0))
+            if nó_da_borda in malha.índice_de:
+                i1 = 2*malha.índice_de[nó_da_borda]
+                i2 = i1 + 1
+                u[[i1, i2]] = 0
+                f[[i1, i2]] = np.nan
 
         # Condições de Contorno em f
         gdl_P = grau_de_liberdade_associado_a_P = malha.nós.index(Nó(2, 0.5)) * 2 + 1

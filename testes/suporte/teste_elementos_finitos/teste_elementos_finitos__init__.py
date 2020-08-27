@@ -19,5 +19,18 @@ def teste_Nó():
     assert nó_5 == nó_6
 
 
+def teste_hash_do_Nó():
+    etiqueta = "identificador"
+    nó = Nó(0, 0, etiqueta=etiqueta)
+
+    assert hash(nó) == hash(("identificador", )), f"Hash do Nó:       {hash(nó)}\n"    \
+                                              f"Hash da etiqueta: {hash((etiqueta,))}"
+
+    d = dict()
+    d[nó] = 3
+
+    assert d[Nó(0, 0, etiqueta)] == 3
+
+
 if __name__ == "__main__":
-    teste_Nó()
+    teste_hash_do_Nó()

@@ -1,12 +1,14 @@
+from dataclasses import dataclass
+
 from sympy import *
 
 from suporte.elementos_finitos import Elemento, KeBase
 
 
+@dataclass
 class MembranaQuadrada(Elemento):
 
-    def __init__(self, nós):
-        super().__init__(nós)
+    def __post_init__(self):
         self.bordas = self.traçar_bordas()
 
     def traçar_bordas(self):

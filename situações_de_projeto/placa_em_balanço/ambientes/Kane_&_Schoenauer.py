@@ -1,4 +1,5 @@
 from random import choice
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -140,6 +141,7 @@ class AmbienteDeProjeto(Ambiente):
         self.problema.testar_adaptação(ind)
 
 
+@dataclass(order=True)
 class Projeto(Indivíduo):
     """Classe que carrega as propriedades de cada projeto."""
 

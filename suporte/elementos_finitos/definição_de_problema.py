@@ -1,10 +1,11 @@
 from timeit import default_timer
+from abc import ABC, abstractmethod
 
 import numpy as np
 from numpy.linalg import solve
 
 
-class Problema:
+class Problema(ABC):
 
     def __init__(self, parâmetros_do_problema, método_padrão=None):
         self.parâmetros_do_problema = parâmetros_do_problema
@@ -39,6 +40,7 @@ class Problema:
             return monitorador
 
     # Implementação do algoritmo construtor e testador de genótipos
+    @abstractmethod
     def testar_adaptação(self, indivíduo):
         pass
 
@@ -78,20 +80,24 @@ class Problema:
         self._monitoramento_ativo = False
         self._última_medição = self._início_do_monitoramento = None
 
+    @abstractmethod
     def determinar_graus_de_liberdade(self, malha):
-        return 0
+        pass
 
+    @abstractmethod
     @Monitorador(mensagem="Matrizes de rigidez local determinadas")
     def calcular_matrizes_de_rigidez_local(self, **parâmetros_dos_elementos):
-        return list()
+        pass
 
+    @abstractmethod
     @Monitorador(mensagem="Matriz de rigidez global montada")
     def montar_matriz_de_rigidez_geral(self, malha, Ks_locais, graus_de_liberdade, método):
-        return np.empty((0, 0))
+        pass
 
+    @abstractmethod
     @Monitorador(mensagem="Condições de contorno incorporadas")
     def incorporar_condições_de_contorno(self, malha, graus_de_liberdade, **parâmetros_do_problema):
-        return np.empty(0), np.empty(0), list(), list()
+        pass
 
     @Monitorador(mensagem="K fatiado onde f é conhecido")
     def onde_f_é_conhecido_fatiar(self, K, ifc):

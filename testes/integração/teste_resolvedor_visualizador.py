@@ -15,7 +15,7 @@ def teste_se_há_um_nó_por_etiqueta():
 
 def teste_se_me_conversa_com_método_índice_de():
     for e, elemento in enumerate(proj.malha.elementos):
-        iul, iur, idr, idl = [proj.malha.índice_de(nó) for nó in elemento.nós]
+        iul, iur, idr, idl = [proj.malha.índice_de[nó] for nó in elemento.nós]
         índices_globais = np.array([2*iul,
                                     2*iul + 1,
                                     2*iur,

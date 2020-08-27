@@ -1,6 +1,7 @@
 import pickle
 from math import isclose
 from pathlib import Path
+from abc import ABC, abstractmethod
 from typing import Any, Tuple, List
 from dataclasses import dataclass, field
 
@@ -25,7 +26,7 @@ class Nó:
 @dataclass
 class Elemento:
 
-    nós: Tuple[Nó]
+    nós: Tuple[Nó, ...]
 
 
 @dataclass
@@ -37,12 +38,10 @@ class Malha:
 
     def __post_init__(self):
         self.ne = len(self.elementos)
-
-    def índice_de(self, nó):
-        return self.nós.index(nó)
+        self.índice_de = {nó: i for i, nó in enumerate(self.nós)}
 
 
-class KeBase:
+class KeBase(ABC):
 
     def __init__(self):
         matriz, dicionário_de_variáveis = self.construir()
@@ -51,7 +50,7 @@ class KeBase:
         self.matriz = matriz
         self.símbolo_de = dicionário_de_variáveis
 
-    # Sobrescrever método
+    @abstractmethod
     def construir(self):
         pass
 
