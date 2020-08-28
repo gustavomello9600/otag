@@ -31,7 +31,8 @@ def interativo(padrão=False, execução_longa=False, gerações=20):
         problema            = _listar_e_escolher("problemas", situação_de_projeto)
         ambiente            = _listar_e_escolher("ambientes", situação_de_projeto)
 
-    with open(raiz / "situações_de_projeto" / situação_de_projeto / "parâmetros" / parâmetros) as arquivo:
+    with open(raiz / "situações_de_projeto" / situação_de_projeto / "parâmetros" / parâmetros,
+              encoding="utf-8") as arquivo:
         parâmetros_do_problema = json.load(arquivo)
         _processar(parâmetros_do_problema)
 
@@ -70,7 +71,7 @@ def _listar_e_escolher(alternativa, situação_de_projeto="None", situação_esc
     return alternativas[optada]
 
 
-_exceções = ["em", "de", "do", "da", "no", "na"]
+_exceções = ["em", "de", "do", "dos", "da", "das", "no", "nos", "na", "nas", "e", "o", "os", "a", "as"]
 def _casos_mistos(s, reunir=" "):
     palavras = s.split("_")
     palavras = [p.capitalize() if p not in _exceções else p for p in palavras]
@@ -127,7 +128,8 @@ def salvar_estado(amb):
     pasta_da_situação = raiz / "situações_de_projeto" / situação_de_projeto
     pasta_da_semente = "semente_{}".format(semente)
     pasta_da_geração = "geração_{}".format(amb.n_da_geração)
-    caminho          = pasta_da_situação / "dados" / f"{ambiente}__{problema}" / pasta_da_semente / pasta_da_geração
+    caminho          = (pasta_da_situação / "dados"
+                        / f"{ambiente[:-3]}_{problema[:-3]}" / pasta_da_semente / pasta_da_geração)
 
     caminho.mkdir(parents=True, exist_ok=True)
 
@@ -144,7 +146,7 @@ def salvar_estado(amb):
 def salvar_resultado(amb):
     salvar_estado(amb)
 
-    caminho = raiz / "situações_de_projeto" / situação_de_projeto / "resultados" / f"{ambiente}__{problema}"
+    caminho = raiz / "situações_de_projeto" / situação_de_projeto / "resultados" / f"{ambiente[:-3]}_{problema[:-3]}"
 
     caminho.mkdir(parents=True, exist_ok=True)
 
@@ -157,13 +159,13 @@ def salvar_resultado(amb):
     prj = amb.população[0]
     conv, idc = calcular_convergência(amb)
 
-    linha = pd.DataFrame({"Semente": semente,
-                          "Gerações": amb.n_da_geração,
-                          "Indivíduo_mais_apto": prj.nome,
-                          "Adaptação": prj.adaptação,
-                          "Índice_de_Convergência": idc,
-                          "alfa_0": amb.problema.alfa_0,
-                          "e": amb.problema.e})
+    linha = pd.DataFrame({"Semente": [semente],
+                          "Gerações": [amb.n_da_geração],
+                          "Indivíduo_mais_apto": [prj.nome],
+                          "Adaptação": [prj.adaptação],
+                          "Índice_de_Convergência": [idc],
+                          "alfa_0": [amb.problema.alfa_0],
+                          "e": [amb.problema.e]})
 
     tabela = tabela.append(linha)
     tabela.drop_duplicates(inplace=True)
@@ -182,7 +184,7 @@ def carregar_estado(semente=0, geração=1):
     pasta_da_situação = raiz / "situações_de_projeto" / situação_de_projeto
     pasta_da_semente = "semente_{}".format(semente)
     pasta_da_geração = "geração_{}".format(geração)
-    caminho = pasta_da_situação / "dados" / f"{ambiente}__{problema}" / pasta_da_semente / pasta_da_geração
+    caminho = pasta_da_situação / "dados" / f"{ambiente[:-3]}_{problema[:-3]}" / pasta_da_semente / pasta_da_geração
 
     try:
         with open(caminho / "população.b", "rb") as backup:

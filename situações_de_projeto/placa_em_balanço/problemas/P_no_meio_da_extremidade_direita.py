@@ -46,17 +46,17 @@ class PlacaEmBalanço(Problema):
         self.fenótipos_testados = dict()
 
         super().__init__(parâmetros_do_problema, método_padrão)
-        self.digerir(parâmetros_do_problema)
-        self.iniciar_resolvedor()
+        self._digerir(parâmetros_do_problema)
+        self._iniciar_resolvedor()
 
-    def digerir(self, parâmetros_do_problema):
+    def _digerir(self, parâmetros_do_problema):
         self.Dlim = parâmetros_do_problema["DESLOCAMENTO_LIMITE_DO_MATERIAL"]
         self.lado_dos_elementos = 1 / parâmetros_do_problema["ORDEM_DE_REFINAMENTO_DA_MALHA"]
         self._método_padrão = parâmetros_do_problema["MÉTODO_PADRÃO_DE_MONTAGEM_DA_MATRIZ_DE_RIGIDEZ_GERAL"]
         self.alfa = self.alfa_0 = parâmetros_do_problema["CONSTANTE_DE_PENALIZAÇÃO_SOB_DESLOCAMENTO_EXCEDENTE"]
         self.e = parâmetros_do_problema["CONSTANTE_DE_PENALIZAÇÃO_DA_ÁREA_DESCONECTADA"]
 
-    def iniciar_resolvedor(self):
+    def _iniciar_resolvedor(self):
         self.Ke = None
         self._montador_do = {"expansão": self.montador_expansão,
                              "compacto": self.montador_compacto,
@@ -89,22 +89,22 @@ class PlacaEmBalanço(Problema):
             grafo = np.random.choice((True, False), (7, 14))
 
             # Determina os pontos de corte e retorna seus índices i e j
-            kis = self.fatiar_intervalo(c=38, t=t, f=7, dividir_ao_meio=True)
-            kjs = self.fatiar_intervalo(c=76, t=t, f=14, dividir_ao_meio=False)
+            kis = self._fatiar_intervalo(c=38, t=t, f=7, dividir_ao_meio=True)
+            kjs = self._fatiar_intervalo(c=76, t=t, f=14, dividir_ao_meio=False)
 
             # Caminha aleatoriamente pelo grafo desde o ponto de aplicação da força até uma borda,
             # preenchendo as fatias ao longo da trajetória
-            trajetória = self.caminhar_até_a_borda(i_partida=int(np.where(kis == 19)[0]), j_partida=13)
+            trajetória = self._caminhar_até_a_borda(i_partida=int(np.where(kis == 19)[0]), j_partida=13)
             grafo[trajetória[0], trajetória[1]] = 1
 
-            gene = self.formar_gene_a_partir_do(grafo, kis, kjs)
+            gene = self._formar_gene_a_partir_do(grafo, kis, kjs)
 
             genes.append(gene)
 
         return genes
 
     @staticmethod
-    def fatiar_intervalo(c=38, t=4, f=7, dividir_ao_meio=False):
+    def _fatiar_intervalo(c=38, t=4, f=7, dividir_ao_meio=False):
         """
         Fatia aleatoriamente um intervalo de comprimento c em f fatias (ou subintervalos) de comprimento mínimo t
         e retorna uma lista com os índices correspondentes aos pontos de corte.
@@ -132,7 +132,7 @@ class PlacaEmBalanço(Problema):
 
         # Calcula os índices como o resultado da soma cumulativa do vetor que contém o comprimento de cada
         # subintervalo tomado como o comprimento mínimo somado a uma distribuição aleatória da folga
-        ks = np.cumsum([0] + list(np.array(f * [t]) + np.array(peb.distribuir(folga, f))))
+        ks = np.cumsum([0] + list(np.array(f * [t]) + np.array(peb._distribuir(folga, f))))
 
         # Corrige a divisão quando se deseja que haja um corte em c // 2
         if dividir_ao_meio:
@@ -153,7 +153,7 @@ class PlacaEmBalanço(Problema):
         return ks
 
     @staticmethod
-    def distribuir(folga, fatias):
+    def _distribuir(folga, fatias):
         """
         Distribui a folga aleatoriamente dentre as fatias
 
@@ -180,7 +180,7 @@ class PlacaEmBalanço(Problema):
         return distribuição
 
     @staticmethod
-    def caminhar_até_a_borda(i_partida=0, j_partida=13):
+    def _caminhar_até_a_borda(i_partida=0, j_partida=13):
         """
         Caminha aleatoriamente pelo grafo desde o ponto de aplicação da força até uma borda.
 
@@ -219,7 +219,7 @@ class PlacaEmBalanço(Problema):
             elif último_movimento == "baixo":
                 direções.remove("cima")
 
-            # Cuida para nque não se excedam as bordas
+            # Cuida para que não se excedam as bordas
             if i == 0:
                 direções.remove("cima")
             elif i == 6:
@@ -252,7 +252,7 @@ class PlacaEmBalanço(Problema):
         return I, J
 
     @staticmethod
-    def formar_gene_a_partir_do(grafo, kis, kjs):
+    def _formar_gene_a_partir_do(grafo, kis, kjs):
         """
         Recupera a informação do grafo de partição do espaço de projeto para formar o gene.
 
@@ -287,9 +287,9 @@ class PlacaEmBalanço(Problema):
         l = self.lado_dos_elementos
 
         # Chama o algoritmo de identificação da porção útil do gene e construção do fenótipo.
-        fenótipo, borda_alcançada, elementos_conectados, nós, me = self.determinar_fenótipo(ind.gene, l)
+        fenótipo, borda_alcançada, elementos_conectados, nós, me = self._determinar_fenótipo(ind.gene, l)
 
-        if not borda_alcançada:
+        if not self._atende_os_requisitos_mínimos(fenótipo, borda_alcançada):
             print(f"> Indivíduo {ind.nome} desconectado da borda")
             ind.adaptação = 0
 
@@ -339,7 +339,7 @@ class PlacaEmBalanço(Problema):
         ind.adaptação_testada = True
 
     @staticmethod
-    def determinar_fenótipo(gene, l):
+    def _determinar_fenótipo(gene, l):
         """
         Executa um algoritmo de busca responsável por determinar, para um certo gene cuja expressão fenotípica é dada
         por uma malha de elementos_finitos quadrados de lado l, a maior porção contínua de matéria satisfazendo as res-
@@ -423,8 +423,8 @@ class PlacaEmBalanço(Problema):
                     if esquerda and not gene_útil[i][j - 1]:
                         possíveis_ramificações.add((i, j - 1, "esquerda"))
 
-                peb.adicionar_à_malha_o_elemento_em(i, j, contexto=contexto)
-                peb.remover_de(possíveis_ramificações, i, j)
+                peb._adicionar_à_malha_o_elemento_em(i, j, contexto=contexto)
+                peb._remover_de(possíveis_ramificações, i, j)
 
                 # Decide se continua descendo ou se passa a subir
                 if descida:
@@ -463,8 +463,8 @@ class PlacaEmBalanço(Problema):
                     if esquerda and not gene_útil[i][j - 1]:
                         possíveis_ramificações.add((i, j - 1, "esquerda"))
 
-                peb.adicionar_à_malha_o_elemento_em(i, j, contexto=contexto)
-                peb.remover_de(possíveis_ramificações, i, j)
+                peb._adicionar_à_malha_o_elemento_em(i, j, contexto=contexto)
+                peb._remover_de(possíveis_ramificações, i, j)
 
                 # Decide se continua descendo ou se passa a subir
                 if subida:
@@ -485,7 +485,7 @@ class PlacaEmBalanço(Problema):
         return gene_útil, borda_alcançada, elementos, nós, me
 
     @staticmethod
-    def adicionar_à_malha_o_elemento_em(i, j, contexto):
+    def _adicionar_à_malha_o_elemento_em(i, j, contexto):
         # Recebe o contexto
         l, gene_útil, elementos, nós, me, etiquetas_de_nós_já_construídos, \
         etiquetas_de_elementos_já_construídos, índice_na_malha               = contexto
@@ -541,9 +541,13 @@ class PlacaEmBalanço(Problema):
             etiquetas_de_elementos_já_construídos.add(ul.etiqueta)
 
     @staticmethod
-    def remover_de(possíveis_ramificações, i, j):
+    def _remover_de(possíveis_ramificações, i, j):
         possíveis_ramificações.discard((i, j, "esquerda"))
         possíveis_ramificações.discard((i, j, "direita"))
+
+    @staticmethod
+    def _atende_os_requisitos_mínimos(fenótipo, borda_alcançada):
+        return borda_alcançada
 
     # Métodos auxiliares da resolução via análise de elementos finitos
     @Monitorador(mensagem="Total de graus de liberdade determinados")
