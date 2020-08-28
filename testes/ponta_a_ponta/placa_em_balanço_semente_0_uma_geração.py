@@ -1,3 +1,5 @@
 from otag import *
 
-interativo(True)
+def teste_ponta_a_ponta():
+    interativo(True, gerações=1)
+    assert True

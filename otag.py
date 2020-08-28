@@ -22,49 +22,18 @@ ambiente   = "Kane_&_Schoenauer.py"
 problema   = "P_no_meio_da_extremidade_direita.py"
 
 
-def interativo(padrão=False, execução_longa=False):
+def interativo(padrão=False, execução_longa=False, gerações=20):
+    global situação_de_projeto, parâmetros, ambiente, problema
+
     if not padrão:
-        global situação_de_projeto, parâmetros, ambiente, problema
-
-        situações = os.listdir(raiz / "situações_de_projeto")
-        opções = [f"  {i + 1}. {_casos_mistos(sit)}" for i, sit in enumerate(situações)]
-        print("> Escolha uma situação de projeto")
-        for opção in opções:
-            print(opção)
-        optada = int(input("> Escolha uma opção:")) - 1
-
-        situação_de_projeto = situações[optada]
-
-        possíveis_parâmetros = os.listdir(raiz / "situações_de_projeto" / situação_de_projeto / "parâmetros")
-        opções = [f"  {i + 1}. {_casos_mistos(sit)}"[:-5] for i, sit in enumerate(possíveis_parâmetros)]
-        print("> Escolha os parâmetros do problema")
-        for opção in opções:
-            print(opção)
-        optada = int(input("> Escolha uma opção:")) - 1
-
-        parâmetros = possíveis_parâmetros[optada]
-
-        problemas = os.listdir(raiz / "situações_de_projeto" / situação_de_projeto / "problemas")
-        opções = [f"  {i + 1}. {_casos_mistos(sit)}"[:-3] for i, sit in enumerate(problemas)]
-        print("> Escolha a definição do problema")
-        for opção in opções:
-            print(opção)
-        optada = int(input("> Escolha uma opção:")) - 1
-
-        problema = problemas[optada]
-
-        ambientes = os.listdir(raiz / "situações_de_projeto" / situação_de_projeto / "ambientes")
-        opções = [f"  {i + 1}. {_casos_mistos(sit)}"[:-3] for i, sit in enumerate(ambientes)]
-        print("> Escolha o ambiente de projeto")
-        for opção in opções:
-            print(opção)
-        optada = int(input("> Escolha uma opção:")) - 1
-
-        ambiente = ambientes[optada]
+        situação_de_projeto = _listar_e_escolher("situações_de_projeto", situação_escolhida=False)
+        parâmetros          = _listar_e_escolher("parâmetros", situação_de_projeto)
+        problema            = _listar_e_escolher("problemas", situação_de_projeto)
+        ambiente            = _listar_e_escolher("ambientes", situação_de_projeto)
 
     with open(raiz / "situações_de_projeto" / situação_de_projeto / "parâmetros" / parâmetros) as arquivo:
         parâmetros_do_problema = json.load(arquivo)
-    processar(parâmetros_do_problema)
+        _processar(parâmetros_do_problema)
 
     módulo_do_problema = import_module(f"situações_de_projeto.{situação_de_projeto}.problemas.{problema[:-3]}")
     ProblemaDefinido = getattr(módulo_do_problema, "".join(p.capitalize() for p in situação_de_projeto.split("_")))
@@ -72,23 +41,31 @@ def interativo(padrão=False, execução_longa=False):
     módulo_do_ambiente = import_module(f"situações_de_projeto.{situação_de_projeto}.ambientes.{ambiente[:-3]}")
     AmbienteDeProjeto = getattr(módulo_do_ambiente, "AmbienteDeProjeto")
 
+    print(f">> Executando: \n"
+          f"       {ambiente[:-3]}({problema[:-3]}({parâmetros[:-5]}))\n")
     amb = AmbienteDeProjeto(ProblemaDefinido(parâmetros_do_problema))
 
     if execução_longa:
         execução_completa(amb)
-
     else:
-        execução_típica(5, amb)
+        execução_típica(gerações, amb)
 
 
-def processar(parâmetros_do_problema):
-    for k, v in parâmetros_do_problema.items():
-        if v[0] not in "0123456789":
-            continue
-        elif "." in v or "e" in v:
-            parâmetros_do_problema[k] = float(v)
-        else:
-            parâmetros_do_problema[k] = int(v)
+def _listar_e_escolher(alternativa, situação_de_projeto="None", situação_escolhida=True):
+    caminho = ((raiz / "situações_de_projeto" / situação_de_projeto / alternativa) if situação_escolhida
+               else (raiz / alternativa))
+
+    alternativas = [alt for alt in os.listdir(caminho) if not alt.startswith("__")]
+
+    opções = [f"  {i + 1}. {_casos_mistos(alt[:alt.index('.')])}" if "." in alt else f"  {i + 1}. {_casos_mistos(alt)}"
+              for i, alt in enumerate(alternativas)]
+
+    print(f"> Escolha dentre os(as) {_casos_mistos(alternativa)}")
+    for opção in opções:
+        print(opção)
+    optada = int(input(">>>")) - 1
+
+    return alternativas[optada]
 
 
 _exceções = ["em", "de", "do", "da", "no", "na"]
@@ -96,6 +73,16 @@ def _casos_mistos(s, reunir=" "):
     palavras = s.split("_")
     palavras = [p.capitalize() if p not in _exceções else p for p in palavras]
     return reunir.join(palavras)
+
+
+def _processar(parâmetros_do_problema):
+    for k, v in parâmetros_do_problema.items():
+        if v[0] not in "0123456789":
+            continue
+        elif "." in v or "e" in v:
+            parâmetros_do_problema[k] = float(v)
+        else:
+            parâmetros_do_problema[k] = int(v)
 
 
 def mudar_semente(sem):
@@ -162,7 +149,6 @@ def salvar_resultado(amb):
     try:
         tabela = pd.read_csv(caminho / "comparação_de_resultados.csv")
     except FileNotFoundError:
-        caminho.mkdir(parents=True, exist_ok=True)
         tabela = pd.DataFrame(columns=["Semente", "Gerações", "Indivíduo_mais_apto",
                                        "Adaptação", "Índice_de_Convergência", "alfa_0", "e"])
 
@@ -174,9 +160,7 @@ def salvar_resultado(amb):
     alfa = amb.problema.alfa_0
     edes = 0.4
 
-    conv   = sum([ind.gene for ind in amb.população]) / 100
-    m_conv = np.vectorize(lambda x: 4 * (x ** 2) - 4 * x + 1)
-    idc    = sum(m_conv(conv).flat) / len(conv.flat)
+    conv, idc = _calcular_índice_de_convergência(amb)
 
     linha = pd.DataFrame({"Semente":                [sem],
                           "Gerações":               [ger],
@@ -191,6 +175,17 @@ def salvar_resultado(amb):
     tabela.to_csv(caminho / "comparação_de_resultados.csv", index=False)
 
     mostrar_projeto(prj, arquivo=(caminho / f"semente_{sem}.png"))
+
+
+def _calcular_índice_de_convergência(amb):
+    conv = sum([ind.gene for ind in amb.população]) / 100
+    idc = sum(_mconv(conv).flat)/len(conv.flat)
+    return conv, idc
+
+
+@np.vectorize
+def _mconv(V):
+    return 4*(V**2) - 4*V + 1
 
 
 def ciclo_de_(n, amb):

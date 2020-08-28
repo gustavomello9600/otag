@@ -16,7 +16,7 @@ def mostrar_progresso(info):
 
 
 def mapa_de_convergência(amb):
-    conv = sum([ind.gene for ind in amb.indivíduos]) / 100
+    conv = sum([ind.gene for ind in amb.população]) / 100
     m_conv = np.vectorize(lambda x: 4 * (x ** 2) - 4 * x + 1)
     i_conv = sum(m_conv(conv).flat) / len(conv.flat)
     print("Índice de Convergência: {:.2f}%".format(100 * i_conv))
