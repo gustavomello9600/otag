@@ -1,15 +1,15 @@
 import os
 import json
 import pickle
-from copy import deepcopy
 from pathlib import Path
+from copy import deepcopy
 from importlib import import_module
 from random import seed, getstate, setstate
 
 import numpy as np
 import pandas as pd
 
-from visualizador.placa_em_balanço import mostrar_projeto
+from visualizador.placa_em_balanço import mostrar_projeto, calcular_convergência
 
 raiz = Path(__file__).parent
 
@@ -49,6 +49,8 @@ def interativo(padrão=False, execução_longa=False, gerações=20):
         execução_completa(amb)
     else:
         execução_típica(gerações, amb)
+
+    return amb
 
 
 def _listar_e_escolher(alternativa, situação_de_projeto="None", situação_escolhida=True):
@@ -152,40 +154,22 @@ def salvar_resultado(amb):
         tabela = pd.DataFrame(columns=["Semente", "Gerações", "Indivíduo_mais_apto",
                                        "Adaptação", "Índice_de_Convergência", "alfa_0", "e"])
 
-    sem  = semente
-    ger  = amb.n_da_geração
-    prj  = amb.população[0]
-    ima  = prj.nome
-    adpt = prj.adaptação
-    alfa = amb.problema.alfa_0
-    edes = 0.4
+    prj = amb.população[0]
+    conv, idc = calcular_convergência(amb)
 
-    conv, idc = _calcular_índice_de_convergência(amb)
-
-    linha = pd.DataFrame({"Semente":                [sem],
-                          "Gerações":               [ger],
-                          "Indivíduo_mais_apto":    [ima],
-                          "Adaptação":             [adpt],
-                          "Índice_de_Convergência": [idc],
-                          "alfa_0":                [alfa],
-                          "e":                     [edes]})
+    linha = pd.DataFrame({"Semente": semente,
+                          "Gerações": amb.n_da_geração,
+                          "Indivíduo_mais_apto": prj.nome,
+                          "Adaptação": prj.adaptação,
+                          "Índice_de_Convergência": idc,
+                          "alfa_0": amb.problema.alfa_0,
+                          "e": amb.problema.e})
 
     tabela = tabela.append(linha)
     tabela.drop_duplicates(inplace=True)
     tabela.to_csv(caminho / "comparação_de_resultados.csv", index=False)
 
-    mostrar_projeto(prj, arquivo=(caminho / f"semente_{sem}.png"))
-
-
-def _calcular_índice_de_convergência(amb):
-    conv = sum([ind.gene for ind in amb.população]) / 100
-    idc = sum(_mconv(conv).flat)/len(conv.flat)
-    return conv, idc
-
-
-@np.vectorize
-def _mconv(V):
-    return 4*(V**2) - 4*V + 1
+    mostrar_projeto(prj, arquivo=(caminho / f"semente_{semente}.png"))
 
 
 def ciclo_de_(n, amb):

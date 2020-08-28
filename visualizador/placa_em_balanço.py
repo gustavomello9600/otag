@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-
 plt.rcParams['figure.dpi'] = 200
 
 
@@ -16,13 +15,23 @@ def mostrar_progresso(info):
 
 
 def mapa_de_convergência(amb):
-    conv = sum([ind.gene for ind in amb.população]) / 100
-    m_conv = np.vectorize(lambda x: 4 * (x ** 2) - 4 * x + 1)
-    i_conv = sum(m_conv(conv).flat) / len(conv.flat)
-    print("Índice de Convergência: {:.2f}%".format(100 * i_conv))
+    conv, i_conv = calcular_convergência(amb)
+
+    plt.suptitle("Índice de Convergência: {:.2f}%".format(100 * i_conv))
     plt.imshow(conv, cmap="hot")
     plt.colorbar()
     plt.show()
+
+
+def calcular_convergência(amb):
+    conv = sum([ind.gene for ind in amb.população]) / 100
+    idc = sum(_mconv(conv).flat)/len(conv.flat)
+    return conv, idc
+
+
+@np.vectorize
+def _mconv(V):
+    return 4*(V**2) - 4*V + 1
 
 
 def mostrar_projeto(proj,  k=1, arquivo=None):
@@ -131,3 +140,4 @@ def plotar_malha_com_cores(proj, k=1, paleta="magma"):
     plt.imshow(quadro, cmap=paleta, interpolation="none")
     plt.colorbar()
     plt.show()
+

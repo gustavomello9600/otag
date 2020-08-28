@@ -54,6 +54,7 @@ class PlacaEmBalanço(Problema):
         self.lado_dos_elementos = 1 / parâmetros_do_problema["ORDEM_DE_REFINAMENTO_DA_MALHA"]
         self._método_padrão = parâmetros_do_problema["MÉTODO_PADRÃO_DE_MONTAGEM_DA_MATRIZ_DE_RIGIDEZ_GERAL"]
         self.alfa = self.alfa_0 = parâmetros_do_problema["CONSTANTE_DE_PENALIZAÇÃO_SOB_DESLOCAMENTO_EXCEDENTE"]
+        self.e = parâmetros_do_problema["CONSTANTE_DE_PENALIZAÇÃO_DA_ÁREA_DESCONECTADA"]
 
     def iniciar_resolvedor(self):
         self.Ke = None
@@ -331,8 +332,7 @@ class PlacaEmBalanço(Problema):
                 if penalização:
                     print(f"> Indivíduo {ind.nome} penalizado: Dmax - Dlim = {penalização:.3e} metros")
 
-                e = self.parâmetros_do_problema["CONSTANTE_DE_PENALIZAÇÃO_DA_ÁREA_DESCONECTADA"]
-                ind.adaptação = 1 / (Acon + e * Ades + self.alfa * penalização)
+                ind.adaptação = 1 / (Acon + self.e * Ades + self.alfa * penalização)
 
                 print(f"> {ind.nome} conectado à borda. Adaptação: {ind.adaptação}")
 
