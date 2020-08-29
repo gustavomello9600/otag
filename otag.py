@@ -2,14 +2,13 @@ import os
 import json
 import pickle
 from pathlib import Path
-from copy import deepcopy
 from importlib import import_module
 from random import seed, getstate, setstate
 
 import numpy as np
 import pandas as pd
 
-from visualizador.placa_em_balanço import mostrar_projeto, calcular_convergência
+from visualizador.placa_em_balanço import calcular_convergência, mostrar_ambiente
 
 raiz = Path(__file__).parent
 
@@ -18,8 +17,8 @@ info_gerações = []
 
 situação_de_projeto = "placa_em_balanço"
 parâmetros = "padrão.json"
-ambiente   = "Kane_&_Schoenauer.py"
-problema   = "P_no_meio_da_extremidade_direita.py"
+ambiente = "Kane_&_Schoenauer.py"
+problema = "P_no_meio_da_extremidade_direita.py"
 
 
 def interativo(padrão=False, execução_longa=False, gerações=20):
@@ -42,14 +41,10 @@ def interativo(padrão=False, execução_longa=False, gerações=20):
     módulo_do_ambiente = import_module(f"situações_de_projeto.{situação_de_projeto}.ambientes.{ambiente[:-3]}")
     AmbienteDeProjeto = getattr(módulo_do_ambiente, "AmbienteDeProjeto")
 
-    print(f">> Executando: \n"
-          f"       {ambiente[:-3]}({problema[:-3]}({parâmetros[:-5]}))\n")
-    amb = AmbienteDeProjeto(ProblemaDefinido(parâmetros_do_problema))
-
     if execução_longa:
-        execução_completa(amb)
+        amb = execução_completa(construtores=(AmbienteDeProjeto, ProblemaDefinido, parâmetros_do_problema))
     else:
-        execução_típica(gerações, amb)
+        amb = execução_típica(gerações, construtores=(AmbienteDeProjeto, ProblemaDefinido, parâmetros_do_problema))
 
     return amb
 
@@ -96,12 +91,32 @@ def mudar_semente(sem):
     semente = sem
 
 
-def execução_completa(amb):
+def mudar(variável, valor="valor", interativo=False):
+    if interativo:
+        if variável == "situação_de_projeto":
+            valor = _listar_e_escolher("situações_de_projeto", situação_escolhida=False)
+        else:
+            valor = _listar_e_escolher(variável if variável.endswith("s") else variável + "s", situação_de_projeto)
+
+    globals().update({variável: valor})
+
+
+def execução_completa(amb=None, construtores=None):
     for semente in range(10 + 1):
-        execução_típica(300, deepcopy(amb), semente=semente)
+        amb = execução_típica(300, construtores=construtores, semente=semente)
+    return amb
 
 
-def execução_típica(n, amb, semente=0):
+def execução_típica(n, amb=None, construtores=None, semente=0):
+    mudar_semente(semente)
+    if construtores:
+        Amb, Prob, Param = construtores
+        amb = Amb(Prob(Param))
+
+    print(f">> Executando: \n"
+          f"       {ambiente[:-3]}({problema[:-3]}({parâmetros[:-5]})),\n"
+          f"       semente={semente}\n")
+
     for k in range(amb.n_da_geração, amb.n_da_geração + n):
         amb.próxima_geração()
 
@@ -110,6 +125,12 @@ def execução_típica(n, amb, semente=0):
 
         if k % 100 == 0:
             salvar_estado(amb)
+
+        conv, idc = calcular_convergência(amb)
+        if idc >= 0.95:
+            print("------------------------------------------------------\n"
+                  "Evolução parada por índice de convergência superar 95%\n\n")
+            break
 
     salvar_resultado(amb)
 
@@ -125,12 +146,7 @@ def filtrar_informações(amb):
 
 
 def salvar_estado(amb):
-    pasta_da_situação = raiz / "situações_de_projeto" / situação_de_projeto
-    pasta_da_semente = "semente_{}".format(semente)
-    pasta_da_geração = "geração_{}".format(amb.n_da_geração)
-    caminho          = (pasta_da_situação / "dados"
-                        / f"{ambiente[:-3]}_{problema[:-3]}" / pasta_da_semente / pasta_da_geração)
-
+    caminho = localização_dos_dados(amb.n_da_geração, semente)
     caminho.mkdir(parents=True, exist_ok=True)
 
     with open(caminho / "população.b", "wb") as backup:
@@ -143,11 +159,48 @@ def salvar_estado(amb):
         pickle.dump(getstate(), backup)
 
 
+def carregar_estado(semente=0, geração=1):
+    caminho = localização_dos_dados(geração, semente)
+
+    try:
+        with open(caminho / "população.b", "rb") as backup:
+            pop = pickle.load(backup)
+
+        with open(caminho / "estado_do_numpy.b", "rb") as backup:
+            estado = pickle.load(backup)
+            np.random.set_state(estado)
+
+        with open(caminho / "estado_do_random.b", "rb") as backup:
+            estado = pickle.load(backup)
+            setstate(estado)
+
+        print("> Estados dos geradores de números aleatórios redefinidos para quando o backup foi feito")
+
+        return pop
+
+    except FileNotFoundError:
+        print(f"> Não há registros da geração {geração} começada com a semente {semente}")
+
+
+def localização_dos_dados(geração, semente):
+    pasta_da_situação = raiz / "situações_de_projeto" / situação_de_projeto
+    pasta_da_semente = f"semente_{semente}"
+    pasta_da_geração = f"geração_{geração}"
+    pasta_do_contexto = f"{ambiente[:-3]}_{problema[:-3]}" \
+                        f"{('_' + parâmetros[:-5]) if parâmetros != 'padrão.json' else ''}"
+
+    caminho = pasta_da_situação / "dados" / pasta_do_contexto / pasta_da_semente / pasta_da_geração
+
+    return caminho
+
+
 def salvar_resultado(amb):
     salvar_estado(amb)
 
-    caminho = raiz / "situações_de_projeto" / situação_de_projeto / "resultados" / f"{ambiente[:-3]}_{problema[:-3]}"
+    pasta_do_contexto = f"{ambiente[:-3]}_{problema[:-3]}" \
+                        f"{('_' + parâmetros[:-5]) if parâmetros != 'padrão.json' else ''}"
 
+    caminho = raiz / "situações_de_projeto" / situação_de_projeto / "resultados" / pasta_do_contexto
     caminho.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -171,39 +224,13 @@ def salvar_resultado(amb):
     tabela.drop_duplicates(inplace=True)
     tabela.to_csv(caminho / "comparação_de_resultados.csv", index=False)
 
-    mostrar_projeto(prj, arquivo=(caminho / f"semente_{semente}.png"))
+    mostrar_ambiente(amb, semente=semente, arquivo=(caminho / f"semente_{semente}.png"))
 
 
 def ciclo_de_(n, amb):
     amb.avançar_gerações(n)
     filtrar_informações(amb)
     salvar_estado(amb)
-
-
-def carregar_estado(semente=0, geração=1):
-    pasta_da_situação = raiz / "situações_de_projeto" / situação_de_projeto
-    pasta_da_semente = "semente_{}".format(semente)
-    pasta_da_geração = "geração_{}".format(geração)
-    caminho = pasta_da_situação / "dados" / f"{ambiente[:-3]}_{problema[:-3]}" / pasta_da_semente / pasta_da_geração
-
-    try:
-        with open(caminho / "população.b", "rb") as backup:
-            pop = pickle.load(backup)
-
-        with open(caminho / "estado_do_numpy.b", "rb") as backup:
-            estado = pickle.load(backup)
-            np.random.set_state(estado)
-
-        with open(caminho / "estado_do_random.b", "rb") as backup:
-            estado = pickle.load(backup)
-            setstate(estado)
-
-        print("> Estados dos geradores de números aleatórios redefinidos para quando o backup foi feito")
-
-        return pop
-
-    except FileNotFoundError:
-        print("> Não há registros da geração {} começada com a semente {}".format(geração, semente))
 
 
 mudar_semente(semente)

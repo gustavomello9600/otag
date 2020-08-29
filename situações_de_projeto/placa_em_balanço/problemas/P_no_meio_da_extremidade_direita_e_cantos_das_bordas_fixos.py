@@ -28,7 +28,7 @@ class PlacaEmBalanço(PlacaEmBalanço):
         genes = []
         for k in range(100):
             # Inicia um grafo que representa o preenchimento de cada fatia do espaço de projeto
-            grafo = np.random.choice((True, False), (7, 14), p=(0.20, 0.80))
+            grafo = np.random.choice((True, False), (7, 14), p=(0.15, 0.85))
 
             # Determina os pontos de corte e retorna seus índices i e j
             kis = self._fatiar_intervalo(c=38, t=t, f=7, dividir_ao_meio=True)
@@ -40,8 +40,8 @@ class PlacaEmBalanço(PlacaEmBalanço):
 
             trajetória = np.zeros((7, 14), dtype=bool)
 
-            self._caminhada_desde_o_canto_com(i_partida=6, i_chegada=i_chegada, grafo=trajetória, p=0.36)
-            self._caminhada_desde_o_canto_com(i_partida=0, i_chegada=i_chegada, grafo=trajetória, p=0.36)
+            self._caminhada_desde_o_canto_com(i_partida=6, i_chegada=i_chegada, grafo=trajetória, p=0.5)
+            self._caminhada_desde_o_canto_com(i_partida=0, i_chegada=i_chegada, grafo=trajetória, p=0.5)
 
             grafo |= trajetória
 
@@ -61,11 +61,7 @@ class PlacaEmBalanço(PlacaEmBalanço):
         i, j = i_partida, j_partida
         último_movimento = "direita"
         while i != i_chegada or j != 13:
-            # Observa se o grafo já foi preenchido na posição
-            if grafo[i, j]:
-                break
-            else:
-                grafo[i, j] = True
+            grafo[i, j] = True
 
             possíveis_direções = ["baixo", "cima", "direita"]
 

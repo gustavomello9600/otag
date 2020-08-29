@@ -1,19 +1,21 @@
 from dataclasses import dataclass
+from typing import Dict, Tuple, FrozenSet
 
-from sympy import *
+from sympy import diff, sqrt, symbols, simplify, Matrix, Symbol, MatrixSymbol
 
-from suporte.elementos_finitos import Elemento, KeBase
+from suporte.elementos_finitos import Nó, Elemento, KeBase
 
 
 @dataclass
 class MembranaQuadrada(Elemento):
 
     def __post_init__(self):
-        self.bordas = self.traçar_bordas()
-
-    def traçar_bordas(self):
-        """Cria um atributo de bordas como uma tupla de conjuntos imutáveis de Nós que compartilham lados"""
-        return tuple(frozenset([nó, self.nós[i + 1 if i < 3 else 0]]) for i, nó in enumerate(self.nós))
+        # noinspection PyTypeChecker
+        self.bordas: Tuple[FrozenSet[Nó, Nó], FrozenSet[Nó, Nó], FrozenSet[Nó, Nó], FrozenSet[Nó, Nó]] = \
+            tuple(
+                frozenset({nó, self.nós[i + 1 if i < 3 else 0]})
+                for i, nó in enumerate(self.nós)
+            )
 
     def __str__(self):
         borda_superior = f"({self.nós[0].x}, {self.nós[0].y}) — ({self.nós[1].x}, {self.nós[1].y})"
@@ -24,10 +26,10 @@ class MembranaQuadrada(Elemento):
 
 class KeBaseMQ(KeBase):
 
-    def construir(self):
+    def construir(self) -> Tuple[Matrix, Dict[str, Symbol]]:
         print("-----------------")
         print("> Calculando K(e) base")
-        print("Necessário apenas uma vez")
+        print("(Necessário apenas uma vez)")
 
         qsi, eta = symbols("xi eta")
 
@@ -55,8 +57,8 @@ class KeBaseMQ(KeBase):
 
         t, v, E = symbols("t nu E")
         E_m = MatrixSymbol("E", 3, 3)
-        E_matrix = simplify((E / (1 - v ** 2)) * Matrix([[1, v, 0],
-                                                         [v, 1, 0],
+        E_matrix = simplify((E / (1 - v ** 2)) * Matrix([[1, v,           0],
+                                                         [v, 1,           0],
                                                          [0, 0, (1 - v) / 2]]))
 
         K_matriz = B.T * E_m * B
