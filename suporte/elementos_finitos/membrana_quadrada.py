@@ -9,7 +9,7 @@ from suporte.elementos_finitos import Nó, Elemento, KeBase
 @dataclass
 class MembranaQuadrada(Elemento):
 
-    def __post_init__(self):
+    def traçar_bordas(self):
         # noinspection PyTypeChecker
         self.bordas: Tuple[FrozenSet[Nó, Nó], FrozenSet[Nó, Nó], FrozenSet[Nó, Nó], FrozenSet[Nó, Nó]] = \
             tuple(

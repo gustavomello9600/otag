@@ -5,7 +5,7 @@ from situações_de_projeto.placa_em_balanço.problemas.P_no_meio_da_extremidade
 
 class PlacaEmBalanço(PlacaEmBalanço):
 
-    def geração_0(self, t=4):
+    def geração_0(self, n_de_indivíduos=125, t=4):
         """
         Gera aleatoriamente 100 projetos de espessura interna mínima igual a t que estão conectados à borda
         e ao ponto de aplicação da carga.
@@ -26,7 +26,7 @@ class PlacaEmBalanço(PlacaEmBalanço):
         """
 
         genes = []
-        for k in range(100):
+        for k in range(n_de_indivíduos):
             # Inicia um grafo que representa o preenchimento de cada fatia do espaço de projeto
             grafo = np.random.choice((True, False), (7, 14), p=(0.15, 0.85))
 

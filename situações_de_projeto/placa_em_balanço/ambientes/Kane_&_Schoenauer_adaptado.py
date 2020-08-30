@@ -1,9 +1,7 @@
-from copy import deepcopy
 from random import choice
 from dataclasses import dataclass
 
 import numpy as np
-from more_itertools import grouper
 
 from suporte.algoritmo_genético import Ambiente, Indivíduo
 
@@ -29,71 +27,37 @@ class AmbienteDeProjeto(Ambiente):
         Testa a adaptação do indivíduo utilizando a modelagem e as condições de contorno do problema.
     """
 
-    def __init__(self, problema, indivíduos=None, n_de_indivíduos=125, probabilidade_de_mutar=0.01/100):
+    def __init__(self, problema, indivíduos=None, probabilidade_de_mutar=0.01/100):
         self.problema = problema
-        self.n_de_indivíduos = n_de_indivíduos
-        self.índice_de_convergência = 0
-
         super().__init__(indivíduos=indivíduos, probabilidade_de_mutar=probabilidade_de_mutar)
 
     def geração_0(self):
-        return [Projeto(gene, nome=f"Proj_{i + 1}")
-                for i, gene in enumerate(self.problema.geração_0(self.n_de_indivíduos))]
+        return [Projeto(gene, nome=f"G0_{i + 1}") for i, gene in enumerate(self.problema.geração_0())]
 
     def próxima_geração(self):
         self.problema.alfa = self.problema.alfa_0 * (1.01 ** self.n_da_geração)
+        super().próxima_geração()
 
-        print(f"\nGeração {self.n_da_geração}"
-              f"\n-----------")
-
-        self.seleção_natural()
-        self.reprodução()
-        self.mutação()
-
-        self.n_da_geração += 1
-
-        return self
-
-    def seleção_natural(self):
-        # Testa os indivíduos ainda não adaptados da população
-        for ind in self.população:
-            if not ind.adaptação_testada:
-                self._conseguir_adaptação(ind)
-
-        self.população.sort(reverse=True)
-
-    def testar_adaptação(self, ind):
+    def crossover(self, p1, p2, índice):
         """
-        Testa a adaptação do indivíduo utilizando a modelagem e as condições de contorno do problema.
+        Gera um indivíduo filho a partir do cruzamento de dois indivíduos pais.
+
+        Esta é uma implementação do crossover de 3 blocos. Faz-se dois cortes verticais e dois cortes horizontais
+        em posições aleatórias dos genes dos indivíduos pais e se deriva o gene do indivíduo filho a partir de uma
+        cópia do gene do pai 1 com 3 fatias quaisquer trocadas por suas correspondentes no gene do pai 2.
 
         Argumentos
         ----------
-        ind: Projeto -- Projeto que terá a adaptação determinada
+        p1    : Projeto -- Primeiro indivíduo pai
+        p2    : Projeto -- Segundo indivíduo pai
+        índice: int     -- Índice do filho na geração
 
         Retorna
         -------
-        None
+        filho : Projeto -- Indivíduo filho
         """
+        gene_novo = p1.gene.copy()
 
-        self.problema.testar_adaptação(ind)
-
-    def reprodução(self, população=None):
-        adaptações = np.array([i.adaptação for i in self.população])
-        probabilidades = adaptações / (adaptações.sum())
-
-        self.população = [Projeto(p.gene.copy(), p.nome) for p in
-
-            np.random.choice(self.população, self.n_de_indivíduos, p=probabilidades, replace=True)
-
-        ]
-
-        for par_de_projetos in grouper(self.população, 2):
-            if np.random.random() < 0.6:
-                proj1, proj2 = par_de_projetos
-                if proj2 is not None:
-                    self.crossover(proj1, proj2)
-
-    def crossover(self, p1, p2, índice=None):
         # Seleciona 2 pontos de corte aleatórios em cada direção e garante que
         # eles sejam distintos e ordenados
         i1, i2, j1, j2 = np.random.randint(1, 37), np.random.randint(1, 37), \
@@ -118,37 +82,15 @@ class AmbienteDeProjeto(Ambiente):
                 blocos.append(bloco)
 
         # Escreve os 3 blocos retirados do gene do segundo projeto no gene novo
-        gene_de_p1_antes_do_crossover = p1.gene.copy()
-        gene_de_p2_antes_do_crossover = p2.gene.copy()
         for bloco in blocos:
             ibc, ibb = bloco[0]
             jbe, jbd = bloco[1]
 
-            p1.gene[ibc:ibb, jbe:jbd] = gene_de_p2_antes_do_crossover[ibc:ibb, jbe:jbd]
-            p2.gene[ibc:ibb, jbe:jbd] = gene_de_p1_antes_do_crossover[ibc:ibb, jbe:jbd]
+            gene_novo[ibc:ibb, jbe:jbd] = p2.gene[ibc:ibb, jbe:jbd]
 
-    def mutação(self, população=None):
-        mapa_de_convergência, índice_de_convergência = self._calcular_índice_de_convergência()
+        return Projeto(gene_novo, nome=f"G{self.n_da_geração}_{índice}")
 
-        self._mutação_baseada_na_população(mapa_de_convergência)
-
-        if índice_de_convergência > 0.75:
-            self._mutação_baseada_na_topologia()
-
-        self.índice_de_convergência = índice_de_convergência
-
-    def _calcular_índice_de_convergência(self):
-        genes = [proj.gene for proj in self.população]
-        mapa_de_convergência   = np.mean(genes, axis=0)
-        índice_de_convergência = sum(self._mconv(mapa_de_convergência).flat) / len(mapa_de_convergência.flat)
-        return mapa_de_convergência, índice_de_convergência
-
-    @staticmethod
-    @np.vectorize
-    def _mconv(V):
-        return 4 * (V ** 2) - 4 * V + 1
-
-    def _mutação_baseada_na_população(self, mapa_de_convergência):
+    def mutação(self, nova_geração):
         """
         Vira alguns bits dos genes dos indivíduos da próxima geração da população corrente de acordo com uma
         probabilidade de mutar definida na construção da instância.
@@ -168,10 +110,10 @@ class AmbienteDeProjeto(Ambiente):
         """
 
         # Obtém a média, e a média ao quadrado, de cada bit na população
-        Médias = mapa_de_convergência
+        Médias = sum([ind.gene for ind in self.população]) / self.n_de_indivíduos
         Médias_2 = Médias ** 2
 
-        for ind in self.população:
+        for ind in nova_geração:
             # Obtém a propabilidade de mutar de cada bit
             probabilidade_de_mutar = (self.probabilidade_de_mutar
                                       + 99 * self.probabilidade_de_mutar * Médias_2
@@ -183,32 +125,20 @@ class AmbienteDeProjeto(Ambiente):
             # Vira os bits que resultaram em mutações
             ind.gene[mutações] = ~ind.gene[mutações]
 
-    def _mutação_baseada_na_topologia(self):
-        pm = 50 * self.probabilidade_de_mutar
+    def testar_adaptação(self, ind):
+        """
+        Testa a adaptação do indivíduo utilizando a modelagem e as condições de contorno do problema.
 
-        for ind in self.população:
-            gene = ind.gene
-            bordas = ((gene ^ np.roll(gene, 1))
-                      | (gene ^ np.roll(gene, -1))
-                      | (gene ^ np.roll(gene, 1, axis=0))
-                      | (gene ^ np.roll(gene, -1, axis=0)))
+        Argumentos
+        ----------
+        ind: Projeto -- Projeto que terá a adaptação determinada
 
-            aumentar_bordas = True if 0.5 > np.random.random() else False
-            if aumentar_bordas:
-                bordas_sujeitas_a_mutação = gene & bordas
-            else:
-                bordas_sujeitas_a_mutação = ~gene & bordas
+        Retorna
+        -------
+        None
+        """
 
-            bits_virados = (bordas_sujeitas_a_mutação
-                            & np.random.choice((True, False), bordas_sujeitas_a_mutação.shape, p=(pm, 1 - pm)))
-
-            gene[bits_virados] = ~gene[bits_virados]
-
-    def finalizar(self):
-        print("\nGarantindo malha do projeto mais bem adaptado"
-              "\n---------------------------------------------")
-        self.população.sort(reverse=True)
-        self.testar_adaptação(self.população[0])
+        self.problema.testar_adaptação(ind)
 
 
 @dataclass(order=True)
@@ -216,7 +146,4 @@ class Projeto(Indivíduo):
     """Classe que carrega as propriedades de cada projeto."""
 
     def __post_init__(self):
-        self.atualizar_id()
-
-    def atualizar_id(self):
         self.id = self.gene.data.tobytes()

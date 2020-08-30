@@ -199,17 +199,11 @@ class Indivíduo:
     1. Indivíduos podem ser comparados de acordo com sua adaptação:
        >>> Indivíduo(gene="01001010", nome="ind1", adaptação=0) < Indivíduo(gene="10010001", nome="ind2", adaptação=1)
        True
-
-    2. O atributo id serve como chave para que o Ambiente recupere a adaptação de um determinado indivíduo através
-       de um dicionário.
     """
     gene: Any = field(compare=False)
     nome: str = field(compare=False)
     adaptação: float = 0.0
     adaptação_testada: bool = field(default=False, compare=False)
-
-    def __post_init__(self):
-        self.id = self.gene
 
     def __str__(self):
         return f"{self.nome}: {self.adaptação}"

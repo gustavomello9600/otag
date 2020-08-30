@@ -27,7 +27,8 @@ def mapa_de_convergência(amb):
 
 
 def calcular_convergência(amb):
-    conv = sum([ind.gene for ind in amb.população]) / len(amb.população)
+    genes = [proj.gene for proj in amb.população]
+    conv = np.mean(genes, axis=0)
     idc = sum(_mconv(conv).flat)/len(conv.flat)
     return conv, idc
 
@@ -91,6 +92,7 @@ def _definir_bordas(malha):
     lados_internos = set()
 
     for elemento in malha.elementos:
+        elemento.traçar_bordas()
         for lado in elemento.bordas:
             if lado in bordas:
                 lados_internos.add(lado)
@@ -166,8 +168,6 @@ def plotar_malha_com_cores(proj, gráfico, k=0, paleta="magma"):
 def plotar_mapa_de_convergência(amb, gráfico):
     conv, i_conv = calcular_convergência(amb)
 
-    im = gráfico.imshow(1 - conv, cmap="hot")
+    im = gráfico.imshow(1 - conv, cmap="gray")
     gráfico.set_title(f"Mapa de convergência ({100*i_conv:.2f}%)")
-
-    plt.colorbar(im, ax=gráfico)
 

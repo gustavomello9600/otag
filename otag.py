@@ -109,13 +109,14 @@ def execução_completa(amb=None, construtores=None):
 
 def execução_típica(n, amb=None, construtores=None, semente=0):
     mudar_semente(semente)
-    if construtores:
-        Amb, Prob, Param = construtores
-        amb = Amb(Prob(Param))
 
     print(f">> Executando: \n"
           f"       {ambiente[:-3]}({problema[:-3]}({parâmetros[:-5]})),\n"
           f"       semente={semente}\n")
+
+    if construtores:
+        Amb, Prob, Param = construtores
+        amb = Amb(Prob(Param))
 
     for k in range(amb.n_da_geração, amb.n_da_geração + n):
         amb.próxima_geração()
@@ -126,11 +127,18 @@ def execução_típica(n, amb=None, construtores=None, semente=0):
         if k % 100 == 0:
             salvar_estado(amb)
 
-        conv, idc = calcular_convergência(amb)
+        if hasattr(amb, "índice_de_convergência"):
+            idc = amb.índice_de_convergência
+        else:
+            _, idc = calcular_convergência(amb)
+
         if idc >= 0.95:
             print("------------------------------------------------------\n"
                   "Evolução parada por índice de convergência superar 95%\n\n")
             break
+
+    if hasattr(amb, "finalizar"):
+        amb.finalizar()
 
     salvar_resultado(amb)
 

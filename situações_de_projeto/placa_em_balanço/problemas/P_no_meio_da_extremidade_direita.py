@@ -63,7 +63,7 @@ class PlacaEmBalanço(Problema):
                              "OptV1": self.montador_OptV1,
                              "OptV2": self.montador_OptV2}
 
-    def geração_0(self, t=4):
+    def geração_0(self, n_de_indivíduos=125, t=4):
         """
         Gera aleatoriamente 100 projetos de espessura interna mínima igual a t que estão conectados à borda
         e ao ponto de aplicação da carga.
@@ -84,7 +84,7 @@ class PlacaEmBalanço(Problema):
         """
 
         genes = []
-        for k in range(100):
+        for k in range(n_de_indivíduos):
             # Inicia um grafo que representa o preenchimento de cada fatia do espaço de projeto
             grafo = np.random.choice((True, False), (7, 14))
 
@@ -298,7 +298,7 @@ class PlacaEmBalanço(Problema):
             if fenótipo.data.tobytes() in self.fenótipos_testados:
 
                 # Recupera a adaptação do cache
-                ind.adaptação = self.fenótipos_testados[fenótipo.data.tobytes()]
+                ind.adaptação, ind.f, ind.u, ind.malha = self.fenótipos_testados[fenótipo.data.tobytes()]
                 print(f"> Adaptação de {ind.nome} já era conhecida pelo seu fenótipo")
 
             else:
@@ -335,6 +335,8 @@ class PlacaEmBalanço(Problema):
                 ind.adaptação = 1 / (Acon + self.e * Ades + self.alfa * penalização)
 
                 print(f"> {ind.nome} conectado à borda. Adaptação: {ind.adaptação}")
+
+                self.fenótipos_testados[fenótipo.data.tobytes()] = ind.adaptação, ind.f, ind.u, ind.malha
 
         ind.adaptação_testada = True
 
