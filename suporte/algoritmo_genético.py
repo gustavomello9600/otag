@@ -8,6 +8,7 @@ Indivíduo
 Ambiente
     Framework de classe de objetos que agregam Indivíduos e definem sobre eles operadores genéticos.
 """
+
 from dataclasses import dataclass, field
 from typing import Any, Optional, List
 from abc import ABC, abstractmethod

@@ -1,3 +1,5 @@
+from itertools import chain as união_de
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -65,7 +67,7 @@ def plotar_malha(proj, gráfico, k=20):
     bordas, lados_internos = _definir_bordas(proj.malha)
 
     # A premissa aqui é que o vetor u tem a mesma ordem dos nós na lista malha.nós
-    for lado in _união_de(bordas, lados_internos):
+    for lado in união_de(bordas, lados_internos):
         v0, v1 = tuple(lado)
         i0, i1 = proj.malha.índice_de[v0], proj.malha.índice_de[v1]
         dx0, dx1 = proj.u[2*i0], proj.u[2*i1]
@@ -97,13 +99,6 @@ def _definir_bordas(malha):
                 bordas.add(lado)
 
     return bordas, lados_internos
-
-
-def _união_de(bordas, lados_internos):
-    for borda in bordas:
-        yield borda
-    for lado_interno in lados_internos:
-        yield lado_interno
 
 
 def mostrar_ambiente(amb, semente, k=20, arquivo=None):

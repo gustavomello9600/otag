@@ -10,8 +10,10 @@ from suporte.elementos_finitos import Malha, ArrayLike
 
 class Problema(ABC):
 
-    def __init__(self, parâmetros_do_problema: Dict[str, Union[str, int, float]],
+    def __init__(self,
+                 parâmetros_do_problema: Dict[str, Union[str, int, float]],
                  método_padrão: Optional[str] = None):
+        
         self.parâmetros_do_problema = parâmetros_do_problema
         self._método_padrão = método_padrão
 
@@ -48,7 +50,8 @@ class Problema(ABC):
                       parâmetros_dos_elementos: Dict[str, float],
                       malha: Malha,
                       método: str = None,
-                      monitorar: bool = False) -> Tuple[ArrayLike, ArrayLike, Malha]:
+                      monitorar: bool = False
+                      ) -> Tuple[ArrayLike, ArrayLike, Malha]:
 
         self.configurar_monitoramento(monitorar)
 
@@ -90,8 +93,8 @@ class Problema(ABC):
 
     @abstractmethod
     @Monitorador(mensagem="Matrizes de rigidez local determinadas")
-    def calcular_matrizes_de_rigidez_local(self, **parâmetros_dos_elementos)\
-            -> Union[ArrayLike, Container[ArrayLike]]:
+    def calcular_matrizes_de_rigidez_local(self, **parâmetros_dos_elementos
+                                           ) -> Union[ArrayLike, Container[ArrayLike]]:
         pass
 
     @abstractmethod
@@ -100,7 +103,8 @@ class Problema(ABC):
                                        malha: Malha,
                                        Ks_locais: Union[ArrayLike, Container[ArrayLike]],
                                        graus_de_liberdade: int,
-                                       método: str) -> ArrayLike:
+                                       método: str
+                                       ) -> ArrayLike:
         pass
 
     @abstractmethod
@@ -108,7 +112,8 @@ class Problema(ABC):
     def incorporar_condições_de_contorno(self,
                                          malha: Malha,
                                          graus_de_liberdade: int,
-                                         **parâmetros_do_problema) -> Tuple[ArrayLike, ArrayLike, ArrayLike, ArrayLike]:
+                                         **parâmetros_do_problema
+                                         ) -> Tuple[ArrayLike, ArrayLike, ArrayLike, ArrayLike]:
         pass
 
     @Monitorador(mensagem="K fatiado onde f é conhecido")
