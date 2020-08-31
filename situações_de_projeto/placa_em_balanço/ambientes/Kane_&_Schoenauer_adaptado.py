@@ -1,5 +1,6 @@
 from random import choice
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Optional
 
 import numpy as np
 
@@ -144,6 +145,10 @@ class AmbienteDeProjeto(Ambiente):
 @dataclass(order=True)
 class Projeto(Indivíduo):
     """Classe que carrega as propriedades de cada projeto."""
+
+    u: Optional['ArrayLike'] = field(default=None, compare=False)
+    f: Optional['ArrayLike'] = field(default=None, compare=False)
+    malha: Optional['Malha'] = field(default=None, compare=False)
 
     def __post_init__(self):
         self.id = self.gene.data.tobytes()

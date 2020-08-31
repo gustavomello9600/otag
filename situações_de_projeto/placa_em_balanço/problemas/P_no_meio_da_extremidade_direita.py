@@ -1,4 +1,5 @@
 import math
+from collections import OrderedDict
 from random import choice, shuffle
 
 import numpy as np
@@ -43,7 +44,7 @@ class PlacaEmBalanço(Problema):
 
     def __init__(self, parâmetros_do_problema, método_padrão=None):
         # Inicia um cache de fenótipos
-        self.fenótipos_testados = dict()
+        self.fenótipos_testados = Cache(maxsize=300)
 
         super().__init__(parâmetros_do_problema, método_padrão)
         self._digerir(parâmetros_do_problema)
@@ -663,3 +664,24 @@ class PlacaEmBalanço(Problema):
         iuc = índices_onde_u_é_conhecido = np.where(~np.isnan(u))[0]
 
         return f, u, ifc, iuc
+
+
+class Cache(OrderedDict):
+    """Cache de valores recentemente usados"""
+
+    def __init__(self, maxsize=128, **kwds):
+        self.maxsize = maxsize
+        super().__init__(**kwds)
+
+    def __getitem__(self, key):
+        value = super().__getitem__(key)
+        self.move_to_end(key)
+        return value
+
+    def __setitem__(self, key, value):
+        if key in self:
+            self.move_to_end(key)
+        super().__setitem__(key, value)
+        if len(self) > self.maxsize:
+            oldest = next(iter(self))
+            del self[oldest]

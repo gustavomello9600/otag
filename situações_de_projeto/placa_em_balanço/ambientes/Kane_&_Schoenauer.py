@@ -1,6 +1,6 @@
-from copy import deepcopy
+from dataclasses import dataclass, field
+from typing import Optional
 from random import choice
-from dataclasses import dataclass
 
 import numpy as np
 from more_itertools import grouper
@@ -81,7 +81,7 @@ class AmbienteDeProjeto(Ambiente):
         adaptações = np.array([i.adaptação for i in self.população])
         probabilidades = adaptações / (adaptações.sum())
 
-        self.população = [Projeto(p.gene.copy(), p.nome) for p in
+        self.população = [Projeto(p.gene.copy(), p.nome, u=p.u, f=p.f, malha=p.malha) for p in
 
             np.random.choice(self.população, self.n_de_indivíduos, p=probabilidades, replace=True)
 
@@ -215,8 +215,9 @@ class AmbienteDeProjeto(Ambiente):
 class Projeto(Indivíduo):
     """Classe que carrega as propriedades de cada projeto."""
 
-    def __post_init__(self):
-        self.atualizar_id()
+    u: Optional['ArrayLike'] = field(default=None, compare=False)
+    f: Optional['ArrayLike'] = field(default=None, compare=False)
+    malha: Optional['Malha'] = field(default=None, compare=False)
 
-    def atualizar_id(self):
+    def __post_init__(self):
         self.id = self.gene.data.tobytes()

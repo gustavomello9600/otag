@@ -6,7 +6,7 @@ mudar("parâmetros", "pouca_espessura.json")
 
 
 def teste_ponta_a_ponta():
-    interativo(padrão=True, gerações=40)
+    interativo(padrão=True, gerações=30)
 
 
 if __name__ == '__main__':
