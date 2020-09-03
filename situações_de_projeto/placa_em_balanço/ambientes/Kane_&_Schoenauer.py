@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, List
 from random import choice
+import multiprocessing
 
 import numpy as np
 from more_itertools import grouper
@@ -9,28 +10,16 @@ from suporte.algoritmo_genético import Ambiente, Indivíduo
 
 
 class AmbienteDeProjeto(Ambiente):
-    """
-    Classe de objetos que agregam os indivíduos de uma população de projetos e os manipulam de acordo
-    com operadores genéticos específicos ao problema. Herda seus atributos da classe Ambiente definida em
-    suporte.algoritmo_genético.py e tem a maior parte dos seus métodos sobrescritos aqui.
 
-    Métodos
-    -------
-    OPERADORES GENÉTICOS
-    próxima_geração() -> None
-        Executa todos os passos necessários para avançar uma geração como implementado pela classe População
-        no módulo suporte.algoritmo_genético. Adicionalmente, atualiza o valor de alfa.
-    crossover(p1: Projeto, p2: Projeto, índice: int) -> Projeto
-        Gera um indivíduo filho a partir do cruzamento de dois indivíduos pais.
-    mutação(nova_geração: List[Projeto]) -> None
-        Vira alguns bits dos genes dos indivíduos da próxima geração da população de acordo com uma
-        probabilidade de mutar definida na construção da instância.
-    testar_adaptação(ind: Projeto) -> None
-        Testa a adaptação do indivíduo utilizando a modelagem e as condições de contorno do problema.
-    """
+    def __init__(self,
+                 problema: 'Problema',
+                 indivíduos: Optional[List['Projeto']] = None,
+                 n_de_indivíduos: int = 125,
+                 probabilidade_de_mutar: float = 0.01/100,
+                 paralelização: bool = False):
 
-    def __init__(self, problema, indivíduos=None, n_de_indivíduos=125, probabilidade_de_mutar=0.01/100):
         self.problema = problema
+        self.paralelizado = paralelização
         self.n_de_indivíduos = n_de_indivíduos
         self.índice_de_convergência = 0
 
@@ -44,7 +33,7 @@ class AmbienteDeProjeto(Ambiente):
         self.problema.alfa = self.problema.alfa_0 * (1.01 ** self.n_da_geração)
 
         print(f"\nGeração {self.n_da_geração}"
-              f"\n-----------")
+              f"\n===========")
 
         self.seleção_natural()
         self.reprodução()
@@ -55,26 +44,24 @@ class AmbienteDeProjeto(Ambiente):
         return self
 
     def seleção_natural(self):
-        # Testa os indivíduos ainda não adaptados da população
-        for ind in self.população:
-            if not ind.adaptação_testada:
-                self._conseguir_adaptação(ind)
+        """Testa os indivíduos ainda não adaptados da população"""
+        if self.paralelizado:
+            self.seleção_natural_em_paralelo()
+        else:
+            self.seleção_natural_em_série()
 
         self.população.sort(reverse=True)
 
+    def seleção_natural_em_paralelo(self):
+        """ Distribui entre os núcleos do processador o trabalho de conseguir a adaptação de cada projeto."""
+        with multiprocessing.Pool() as fila_de_processamento:
+            self.população = fila_de_processamento.map(self._conseguir_adaptação, self.população)
+
+    def seleção_natural_em_série(self):
+        for proj in self.população:
+            self._conseguir_adaptação(proj)
+
     def testar_adaptação(self, ind):
-        """
-        Testa a adaptação do indivíduo utilizando a modelagem e as condições de contorno do problema.
-
-        Argumentos
-        ----------
-        ind: Projeto -- Projeto que terá a adaptação determinada
-
-        Retorna
-        -------
-        None
-        """
-
         self.problema.testar_adaptação(ind)
 
     def reprodução(self, população=None):
@@ -128,49 +115,35 @@ class AmbienteDeProjeto(Ambiente):
             p2.gene[ibc:ibb, jbe:jbd] = gene_de_p1_antes_do_crossover[ibc:ibb, jbe:jbd]
 
     def mutação(self, população=None):
-        mapa_de_convergência, índice_de_convergência = self._calcular_índice_de_convergência()
+        mapa_de_convergência, self.índice_de_convergência = self._calcular_índice_de_convergência()
+        print(f"\nMutações (Índice de Convergência: {100*self.índice_de_convergência:.2f}%)"
+              f"\n--------")
 
         self._mutação_baseada_na_população(mapa_de_convergência)
+        print(f"> Aplicado operador de convergência em toda a população")
 
-        if índice_de_convergência > 0.75:
+        if self.índice_de_convergência > 0.75:
             self._mutação_baseada_na_topologia()
-
-        self.índice_de_convergência = índice_de_convergência
+            print(f"> Aplicado operador de mutação nas bordas em toda a população")
 
     def _calcular_índice_de_convergência(self):
         genes = [proj.gene for proj in self.população]
-        mapa_de_convergência   = np.mean(genes, axis=0)
-        índice_de_convergência = sum(self._mconv(mapa_de_convergência).flat) / len(mapa_de_convergência.flat)
+        mapa_de_convergência = np.mean(genes, axis=0)
+        índice_de_convergência = self._parábola(mapa_de_convergência).flatten().mean()
+
         return mapa_de_convergência, índice_de_convergência
 
     @staticmethod
     @np.vectorize
-    def _mconv(V):
+    def _parábola(V):
         return 4 * (V ** 2) - 4 * V + 1
 
     def _mutação_baseada_na_população(self, mapa_de_convergência):
-        """
-        Vira alguns bits dos genes dos indivíduos da próxima geração da população corrente de acordo com uma
-        probabilidade de mutar definida na construção da instância.
-
-        Para cada bit de cada gene de cada indivíduo, calcula uma probabilidade de virar dependendo do seu valor
-        correspondente na média dos genes da geração anterior. Um bit do indivíduo que já convergiu na população trará
-        uma probabilidade mínima de virar caso esteja em concordância e uma probabilidade máxima caso esteja em discor-
-        dância.
-
-        Argumentos
-        ----------
-        nova_geração: List[Projeto] -- Lista de Projetos recém-formados pelo operador de crosover
-
-        Retorna
-        -------
-        None
-        """
-
         # Obtém a média, e a média ao quadrado, de cada bit na população
         Médias = mapa_de_convergência
         Médias_2 = Médias ** 2
 
+        # Passível de paralelização
         for ind in self.população:
             # Obtém a propabilidade de mutar de cada bit
             probabilidade_de_mutar = (self.probabilidade_de_mutar
@@ -184,8 +157,9 @@ class AmbienteDeProjeto(Ambiente):
             ind.gene[mutações] = ~ind.gene[mutações]
 
     def _mutação_baseada_na_topologia(self):
-        pm = 50 * self.probabilidade_de_mutar
+        pm = 10 * self.probabilidade_de_mutar
 
+        # Passível de paralelização
         for ind in self.população:
             gene = ind.gene
             bordas = ((gene ^ np.roll(gene, 1))
@@ -195,20 +169,21 @@ class AmbienteDeProjeto(Ambiente):
 
             aumentar_bordas = True if 0.5 > np.random.random() else False
             if aumentar_bordas:
-                bordas_sujeitas_a_mutação = gene & bordas
-            else:
                 bordas_sujeitas_a_mutação = ~gene & bordas
+            else:
+                bordas_sujeitas_a_mutação = gene & bordas
 
             bits_virados = (bordas_sujeitas_a_mutação
-                            & np.random.choice((True, False), bordas_sujeitas_a_mutação.shape, p=(pm, 1 - pm)))
+                            & np.random.choice((True, False),
+                                               bordas_sujeitas_a_mutação.shape,
+                                               p=(pm, 1 - pm)))
 
             gene[bits_virados] = ~gene[bits_virados]
 
     def finalizar(self):
-        print("\nGarantindo malha do projeto mais bem adaptado"
-              "\n---------------------------------------------")
-        self.população.sort(reverse=True)
-        self.testar_adaptação(self.população[0])
+        print("\nExecução Final"
+              "\n--------------")
+        self.seleção_natural()
 
 
 @dataclass(order=True)

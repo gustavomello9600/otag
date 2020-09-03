@@ -10,6 +10,7 @@ import pandas as pd
 
 from visualizador.placa_em_balanço import calcular_convergência, mostrar_ambiente
 
+
 raiz = Path(__file__).parent
 
 semente = 0
@@ -30,16 +31,7 @@ def interativo(padrão=False, execução_longa=False, gerações=20):
         problema            = _listar_e_escolher("problemas", situação_de_projeto)
         ambiente            = _listar_e_escolher("ambientes", situação_de_projeto)
 
-    with open(raiz / "situações_de_projeto" / situação_de_projeto / "parâmetros" / parâmetros,
-              encoding="utf-8") as arquivo:
-        parâmetros_do_problema = json.load(arquivo)
-        _processar(parâmetros_do_problema)
-
-    módulo_do_problema = import_module(f"situações_de_projeto.{situação_de_projeto}.problemas.{problema[:-3]}")
-    ProblemaDefinido = getattr(módulo_do_problema, "".join(p.capitalize() for p in situação_de_projeto.split("_")))
-
-    módulo_do_ambiente = import_module(f"situações_de_projeto.{situação_de_projeto}.ambientes.{ambiente[:-3]}")
-    AmbienteDeProjeto = getattr(módulo_do_ambiente, "AmbienteDeProjeto")
+    AmbienteDeProjeto, ProblemaDefinido, parâmetros_do_problema = conseguir_construtores()
 
     if execução_longa:
         amb = execução_completa(construtores=(AmbienteDeProjeto, ProblemaDefinido, parâmetros_do_problema))
@@ -55,10 +47,12 @@ def _listar_e_escolher(alternativa, situação_de_projeto="None", situação_esc
 
     alternativas = [alt for alt in os.listdir(caminho) if not alt.startswith("__")]
 
-    opções = [f"  {i + 1}. {_casos_mistos(alt[:alt.index('.')])}" if "." in alt else f"  {i + 1}. {_casos_mistos(alt)}"
+    opções = [f"  {i + 1}. {_formatação_casos_mistos(alt[:alt.index('.')])}"
+              if "." in alt
+              else f"  {i + 1}. {_formatação_casos_mistos(alt)}"
               for i, alt in enumerate(alternativas)]
 
-    print(f"> Escolha dentre os(as) {_casos_mistos(alternativa)}")
+    print(f"> Escolha dentre os(as) {_formatação_casos_mistos(alternativa)}")
     for opção in opções:
         print(opção)
     optada = int(input(">>>")) - 1
@@ -67,10 +61,29 @@ def _listar_e_escolher(alternativa, situação_de_projeto="None", situação_esc
 
 
 _exceções = ["em", "de", "do", "dos", "da", "das", "no", "nos", "na", "nas", "e", "o", "os", "a", "as"]
-def _casos_mistos(s, reunir=" "):
+def _formatação_casos_mistos(s, reunir=" "):
     palavras = s.split("_")
     palavras = [p.capitalize() if p not in _exceções else p for p in palavras]
     return reunir.join(palavras)
+
+
+def conseguir_construtores():
+
+    # Alcança e processa os parâmetros do problema
+    with open(raiz / "situações_de_projeto" / situação_de_projeto / "parâmetros" / parâmetros,
+              encoding="utf-8") as arquivo:
+        parâmetros_do_problema = json.load(arquivo)
+        _processar(parâmetros_do_problema)
+
+    # Alcança a definição do problema
+    módulo_do_problema = import_module(f"situações_de_projeto.{situação_de_projeto}.problemas.{problema[:-3]}")
+    ProblemaDefinido = getattr(módulo_do_problema, "".join(p.capitalize() for p in situação_de_projeto.split("_")))
+
+    # Alcança o ambiente de projeto
+    módulo_do_ambiente = import_module(f"situações_de_projeto.{situação_de_projeto}.ambientes.{ambiente[:-3]}")
+    AmbienteDeProjeto = getattr(módulo_do_ambiente, "AmbienteDeProjeto")
+
+    return AmbienteDeProjeto, ProblemaDefinido, parâmetros_do_problema
 
 
 def _processar(parâmetros_do_problema):
@@ -233,13 +246,3 @@ def salvar_resultado(amb):
     tabela.to_csv(caminho / "comparação_de_resultados.csv", index=False)
 
     mostrar_ambiente(amb, semente=semente, arquivo=(caminho / f"semente_{semente}.png"))
-
-
-def ciclo_de_(n, amb):
-    amb.avançar_gerações(n)
-    filtrar_informações(amb)
-    salvar_estado(amb)
-
-
-mudar_semente(semente)
-print("> Semente mudada para o valor padrão (0)")

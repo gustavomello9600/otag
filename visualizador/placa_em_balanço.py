@@ -103,7 +103,7 @@ def _definir_bordas(malha):
     return bordas, lados_internos
 
 
-def mostrar_ambiente(amb, semente, k=20, arquivo=None):
+def mostrar_ambiente(amb, semente=0, k=20, arquivo=None):
     proj = amb.população[0]
 
     fig, gráficos = plt.subplots(2, 2, figsize=(12, 8))

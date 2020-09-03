@@ -73,7 +73,6 @@ class Ambiente(ABC):
             indivíduos = self.geração_0()
 
         self.gerações               = [indivíduos]
-        self.mutações               = []
         self.população              = indivíduos
         self.n_da_geração           = 0
         self.n_de_indivíduos        = len(indivíduos)
@@ -128,13 +127,15 @@ class Ambiente(ABC):
 
         return indivíduos_selecionados
 
-    def _conseguir_adaptação(self, ind: 'Indivíduo') -> None:
+    def _conseguir_adaptação(self, ind: 'Indivíduo') -> 'Indivíduo':
         """Checa se o gene do indivíduo já teve sua adaptação testada e armazena os valores já calculados."""
         if ind.id in self.genes_testados.keys():
             ind.adaptação = self.genes_testados[ind.id]
         else:
             self.testar_adaptação(ind)
             self.genes_testados[ind.id] = ind.adaptação
+
+        return ind
 
     @abstractmethod
     def testar_adaptação(self, indivíduo: 'Indivíduo') -> None:
@@ -181,13 +182,11 @@ class Ambiente(ABC):
         """Modificará a nova geração de acordo com as regras estabelecidas pelo ambiente."""
 
     def __repr__(self):
-        return "Geração {} de População de {} indivíduos: {}".format(self.n_da_geração, self.n_de_indivíduos, self.população)
+        return f"Geração {self.n_da_geração} de População de {self.n_de_indivíduos} indivíduos: {self.população!s}"
 
     def __str__(self):
-        return ("População de {} indivíduos em sua geração {}:\n".format(self.n_de_indivíduos, self.n_da_geração)
-                + (self.n_de_indivíduos * "> {}\n").format(*self.população)
-                + "---------Mutações---------\n"
-                + "\n".join(self.mutações))
+        return (f"População de {self.n_de_indivíduos} indivíduos em sua geração {self.n_da_geração}:\n"
+                + (self.n_de_indivíduos * "> {}\n").format(*self.população))
 
 
 @dataclass(order=True)
@@ -204,6 +203,9 @@ class Indivíduo:
     nome: str = field(compare=False)
     adaptação: float = 0.0
     adaptação_testada: bool = field(default=False, compare=False)
+
+    def __post_init__(self):
+        self.id = self.gene
 
     def __str__(self):
         return f"{self.nome}: {self.adaptação}"
