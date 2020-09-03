@@ -1,17 +1,19 @@
-from sympy import *
+from typing import Dict, Tuple
+from dataclasses import dataclass
 
-from suporte.elementos_finitos import Elemento, KeBase
+from sympy import diff, sqrt, symbols, simplify, Matrix, Symbol, MatrixSymbol
+
+from suporte.elementos_finitos import Elemento, KeBase, MatrizSimbólica
 
 
+@dataclass
 class MembranaQuadrada(Elemento):
 
-    def __init__(self, nós):
-        super().__init__(nós)
-        self.bordas = self.traçar_bordas()
-
-    def traçar_bordas(self):
-        """Cria um atributo de bordas como uma tupla de conjuntos imutáveis de Nós que compartilham lados"""
-        return tuple(frozenset([nó, self.nós[i + 1 if i < 3 else 0]]) for i, nó in enumerate(self.nós))
+    def traçar_bordas(self) -> None:
+        self.bordas = tuple(
+                        frozenset({nó, self.nós[i + 1 if i < 3 else 0]})
+                        for i, nó in enumerate(self.nós)
+                      )
 
     def __str__(self):
         borda_superior = f"({self.nós[0].x}, {self.nós[0].y}) — ({self.nós[1].x}, {self.nós[1].y})"
@@ -20,12 +22,12 @@ class MembranaQuadrada(Elemento):
         return "\n".join([borda_superior, meio, borda_inferior])
 
 
-class KeBaseMQ(KeBase):
+class KeMembranaQuadrada(KeBase):
 
-    def construir(self):
+    def construir(self) -> Tuple[MatrizSimbólica, Dict[str, Symbol]]:
         print("-----------------")
         print("> Calculando K(e) base")
-        print("Necessário apenas uma vez")
+        print("(Necessário apenas uma vez)")
 
         qsi, eta = symbols("xi eta")
 
@@ -53,8 +55,8 @@ class KeBaseMQ(KeBase):
 
         t, v, E = symbols("t nu E")
         E_m = MatrixSymbol("E", 3, 3)
-        E_matrix = simplify((E / (1 - v ** 2)) * Matrix([[1, v, 0],
-                                                         [v, 1, 0],
+        E_matrix = simplify((E / (1 - v ** 2)) * Matrix([[1, v,           0],
+                                                         [v, 1,           0],
                                                          [0, 0, (1 - v) / 2]]))
 
         K_matriz = B.T * E_m * B
@@ -68,4 +70,4 @@ class KeBaseMQ(KeBase):
         return K_matriz, {"l": l, "t": t, "v": v, "E": E}
 
 
-K_base = KeBaseMQ.pronta(cache="K_emq_base.b")
+K_base = KeMembranaQuadrada.pronta(cache="K_emq_base.b")

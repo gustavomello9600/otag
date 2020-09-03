@@ -15,5 +15,9 @@ def teste_Indivíduo():
     assert "i1: 12" == str(ind1)
 
 
+def teste_Ambiente():
+    pass
+
+
 if __name__ == "__main__":
     teste_Indivíduo()
