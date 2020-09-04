@@ -4,11 +4,18 @@ import pickle
 from pathlib import Path
 from importlib import import_module
 from random import seed, getstate, setstate
+from typing import Optional, Sequence, Tuple, Dict, Union, Any, Type
 
 import numpy as np
 import pandas as pd
 
 from visualizador.placa_em_balanço import calcular_convergência, mostrar_ambiente
+from suporte.elementos_finitos.definição_de_problema import Problema
+from suporte.algoritmo_genético import Ambiente
+
+ClasseAmbiente = Type[Ambiente]
+ClasseProblema = Type[Problema]
+ConjuntoDeConstrutores = Tuple[ClasseAmbiente, ClasseProblema, Dict[str, Union[str, int, float]]]
 
 
 raiz = Path(__file__).parent
@@ -22,7 +29,12 @@ ambiente = "Kane_&_Schoenauer.py"
 problema = "P_no_meio_da_extremidade_direita.py"
 
 
-def interativo(padrão=False, execução_longa=False, gerações=20):
+def interativo(padrão: bool = False,
+               gerações: int = 20,
+               execução_longa: bool = False,
+               sementes: Optional[Sequence[int]] = None
+               ) -> Ambiente:
+
     global situação_de_projeto, parâmetros, ambiente, problema
 
     if not padrão:
@@ -35,13 +47,22 @@ def interativo(padrão=False, execução_longa=False, gerações=20):
 
     if execução_longa:
         amb = execução_completa(construtores=(AmbienteDeProjeto, ProblemaDefinido, parâmetros_do_problema))
+    elif sementes is not None:
+        for sem in sementes:
+            amb = execução_típica(gerações,
+                                  semente=sem,
+                                  construtores=(AmbienteDeProjeto, ProblemaDefinido, parâmetros_do_problema))
     else:
         amb = execução_típica(gerações, construtores=(AmbienteDeProjeto, ProblemaDefinido, parâmetros_do_problema))
 
     return amb
 
 
-def _listar_e_escolher(alternativa, situação_de_projeto="None", situação_escolhida=True):
+def _listar_e_escolher(alternativa: str,
+                       situação_de_projeto: str = "None",
+                       situação_escolhida: bool = True
+                       ) -> str:
+
     caminho = ((raiz / "situações_de_projeto" / situação_de_projeto / alternativa) if situação_escolhida
                else (raiz / alternativa))
 
@@ -61,13 +82,13 @@ def _listar_e_escolher(alternativa, situação_de_projeto="None", situação_esc
 
 
 _exceções = ["em", "de", "do", "dos", "da", "das", "no", "nos", "na", "nas", "e", "o", "os", "a", "as"]
-def _formatação_casos_mistos(s, reunir=" "):
+def _formatação_casos_mistos(s: str, reunir: str = " ") -> str:
     palavras = s.split("_")
     palavras = [p.capitalize() if p not in _exceções else p for p in palavras]
     return reunir.join(palavras)
 
 
-def conseguir_construtores():
+def conseguir_construtores() -> ConjuntoDeConstrutores:
 
     # Alcança e processa os parâmetros do problema
     with open(raiz / "situações_de_projeto" / situação_de_projeto / "parâmetros" / parâmetros,
@@ -86,7 +107,7 @@ def conseguir_construtores():
     return AmbienteDeProjeto, ProblemaDefinido, parâmetros_do_problema
 
 
-def _processar(parâmetros_do_problema):
+def _processar(parâmetros_do_problema: Dict[str, str]) -> None:
     for k, v in parâmetros_do_problema.items():
         if v[0] not in "0123456789":
             continue
@@ -96,7 +117,7 @@ def _processar(parâmetros_do_problema):
             parâmetros_do_problema[k] = int(v)
 
 
-def mudar_semente(sem):
+def mudar_semente(sem: int) -> None:
     global semente
 
     seed(sem)
@@ -104,7 +125,7 @@ def mudar_semente(sem):
     semente = sem
 
 
-def mudar(variável, valor="valor", interativo=False):
+def mudar(variável: str, valor: Any = "valor", interativo: bool = False) -> None:
     if interativo:
         if variável == "situação_de_projeto":
             valor = _listar_e_escolher("situações_de_projeto", situação_escolhida=False)
@@ -114,13 +135,20 @@ def mudar(variável, valor="valor", interativo=False):
     globals().update({variável: valor})
 
 
-def execução_completa(amb=None, construtores=None):
+def execução_completa(amb: Optional[Ambiente] = None,
+                      construtores: Optional[ConjuntoDeConstrutores] = None
+                      ) -> Ambiente:
     for semente in range(10 + 1):
         amb = execução_típica(300, construtores=construtores, semente=semente)
     return amb
 
 
-def execução_típica(n, amb=None, construtores=None, semente=0):
+def execução_típica(n: int,
+                    semente: int = 0,
+                    amb: Optional[Ambiente] = None,
+                    construtores: Optional[ConjuntoDeConstrutores] = None
+                    ) -> Ambiente:
+
     mudar_semente(semente)
 
     print(f">> Executando: \n"
@@ -158,7 +186,7 @@ def execução_típica(n, amb=None, construtores=None, semente=0):
     return amb
 
 
-def filtrar_informações(amb):
+def filtrar_informações(amb: Ambiente) -> None:
     global info_gerações
     for gen in amb.gerações:
         adpts = [ind.adaptação for ind in gen]
@@ -166,7 +194,7 @@ def filtrar_informações(amb):
     amb.gerações.clear()
 
 
-def salvar_estado(amb):
+def salvar_estado(amb: Ambiente) -> None:
     caminho = localização_dos_dados(amb.n_da_geração, semente)
     caminho.mkdir(parents=True, exist_ok=True)
 
@@ -180,7 +208,7 @@ def salvar_estado(amb):
         pickle.dump(getstate(), backup)
 
 
-def carregar_estado(semente=0, geração=1):
+def carregar_estado(semente: int = 0, geração: int = 1) -> Optional[Ambiente]:
     caminho = localização_dos_dados(geração, semente)
 
     try:
@@ -203,7 +231,7 @@ def carregar_estado(semente=0, geração=1):
         print(f"> Não há registros da geração {geração} começada com a semente {semente}")
 
 
-def localização_dos_dados(geração, semente):
+def localização_dos_dados(geração: int, semente: int) -> Path:
     pasta_da_situação = raiz / "situações_de_projeto" / situação_de_projeto
     pasta_da_semente = f"semente_{semente}"
     pasta_da_geração = f"geração_{geração}"
@@ -215,7 +243,7 @@ def localização_dos_dados(geração, semente):
     return caminho
 
 
-def salvar_resultado(amb):
+def salvar_resultado(amb: Ambiente) -> None:
     salvar_estado(amb)
 
     pasta_do_contexto = f"{ambiente[:-3]}_{problema[:-3]}" \
