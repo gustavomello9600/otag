@@ -1,4 +1,6 @@
+from pathlib import Path
 from itertools import chain as união_de
+from typing import Tuple, List, Optional
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,7 +9,7 @@ import matplotlib.pyplot as plt
 plt.rcParams['figure.dpi'] = 200
 
 
-def mostrar_progresso(info):
+def mostrar_progresso(info: List[Tuple[float, float, float]]) -> None:
     X = range(len(info))
     Ymax, Ymed, Ymin = zip(*info)
     plt.plot(X, Ymax, "r--")
@@ -17,7 +19,7 @@ def mostrar_progresso(info):
     plt.show()
 
 
-def mapa_de_convergência(amb):
+def mapa_de_convergência(amb: 'Ambiente') -> None:
     conv, i_conv = calcular_convergência(amb)
 
     plt.suptitle("Índice de Convergência: {:.2f}%".format(100 * i_conv))
@@ -26,19 +28,19 @@ def mapa_de_convergência(amb):
     plt.show()
 
 
-def calcular_convergência(amb):
+def calcular_convergência(amb: 'Ambiente') -> Tuple[np.ndarray, float]:
     genes = [proj.gene for proj in amb.população]
     conv = np.mean(genes, axis=0)
-    idc = sum(_mconv(conv).flat)/len(conv.flat)
+    idc = parábola(conv).flatten().mean()
     return conv, idc
 
 
 @np.vectorize
-def _mconv(V):
+def parábola(V: np.ndarray) -> np.ndarray:
     return 4*(V**2) - 4*V + 1
 
 
-def mostrar_projeto(proj,  k=20, arquivo=None):
+def mostrar_projeto(proj: 'Projeto',  k: int = 20, arquivo: Optional[Path] = None) -> None:
     fig, gráficos = plt.subplots(1, 2, figsize=(12, 4))
 
     gráfico_esquerdo = gráficos[0]
@@ -57,13 +59,14 @@ def mostrar_projeto(proj,  k=20, arquivo=None):
         fig.savefig(arquivo)
 
 
-def plotar_gene(proj, gráfico):
-    gráfico.imshow(~proj.gene, cmap="hot")
+def plotar_gene(proj: 'Projeto', gráfico: plt.Axes) -> None:
+    gráfico.imshow(proj.gene, cmap="hot_r")
     gráfico.set_title(f"Material Genético do Projeto {proj.nome}")
 
 
-def plotar_malha(proj, gráfico, k=20):
-    assert k >= 0, f"k = {k}, mas k deve ser maior ou igual a 0"
+def plotar_malha(proj: 'Projeto', gráfico: plt.Axes, k: int = 20) -> None:
+    if k < 0:
+        raise ValueError(f"k = {k}, mas k deve ser maior ou igual a 0")
 
     bordas, lados_internos = _definir_bordas(proj.malha)
 
@@ -87,7 +90,7 @@ def plotar_malha(proj, gráfico, k=20):
     gráfico.set_title(f"Malha de {proj.nome} sujeita à carga do problema")
 
 
-def _definir_bordas(malha):
+def _definir_bordas(malha: 'Malha') -> Tuple[set, set]:
     bordas = set()
     lados_internos = set()
 
@@ -103,7 +106,7 @@ def _definir_bordas(malha):
     return bordas, lados_internos
 
 
-def mostrar_ambiente(amb, semente=0, k=20, arquivo=None):
+def mostrar_ambiente(amb: 'Ambiente', semente: int = 0, k: int = 20, arquivo: Path = None) -> None:
     proj = amb.população[0]
 
     fig, gráficos = plt.subplots(2, 2, figsize=(12, 8))
@@ -126,7 +129,8 @@ def mostrar_ambiente(amb, semente=0, k=20, arquivo=None):
         fig.savefig(arquivo)
 
 
-def plotar_malha_com_cores(proj, gráfico, k=0, paleta="magma"):
+def plotar_malha_com_cores(proj: 'Projeto', gráfico: plt.Axes, k: int = 0,
+                           paleta: str = "magma", inverter_cores: bool = False) -> None:
     quadro = np.full((720, 1440), -0.002)
     for e, elemento in enumerate(proj.malha.elementos):
         is_nós = proj.malha.me[::2, e] // 2
@@ -159,13 +163,14 @@ def plotar_malha_com_cores(proj, gráfico, k=0, paleta="magma"):
 
         quadro[I.astype(int).flatten(), J.astype(int).flatten()] = d_pontos.flatten()
 
-    gráfico.set_title(f"Deformações em {proj.nome}")
+    paleta_final = paleta + "_r" if inverter_cores else paleta
 
-    im = gráfico.imshow(quadro, cmap=paleta, interpolation="none")
+    gráfico.set_title(f"Deformações em {proj.nome}")
+    im = gráfico.imshow(quadro, cmap=paleta_final, interpolation="none")
     plt.colorbar(im, ax=gráfico)
 
 
-def plotar_mapa_de_convergência(amb, gráfico):
+def plotar_mapa_de_convergência(amb: 'Ambiente', gráfico: plt.Axes) -> None:
     conv, i_conv = calcular_convergência(amb)
 
     im = gráfico.imshow(1 - conv, cmap="gray")

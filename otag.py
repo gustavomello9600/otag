@@ -1,9 +1,9 @@
 import os
 import json
 import pickle
+import random
 from pathlib import Path
 from importlib import import_module
-from random import seed, getstate, setstate
 from typing import Optional, Sequence, Tuple, Dict, Union, Any, Type
 
 import numpy as np
@@ -12,6 +12,7 @@ import pandas as pd
 from visualizador.placa_em_balanço import calcular_convergência, mostrar_ambiente
 from suporte.elementos_finitos.definição_de_problema import Problema
 from suporte.algoritmo_genético import Ambiente
+
 
 ClasseAmbiente = Type[Ambiente]
 ClasseProblema = Type[Problema]
@@ -27,6 +28,16 @@ situação_de_projeto = "placa_em_balanço"
 parâmetros = "padrão.json"
 ambiente = "Kane_&_Schoenauer.py"
 problema = "P_no_meio_da_extremidade_direita.py"
+
+
+def mudar(variável: str, valor: Any = "valor", interativo: bool = False) -> None:
+    if interativo:
+        if variável == "situação_de_projeto":
+            valor = _listar_e_escolher("situações_de_projeto", situação_escolhida=False)
+        else:
+            valor = _listar_e_escolher(variável if variável.endswith("s") else variável + "s", situação_de_projeto)
+
+    globals().update({variável: valor})
 
 
 def interativo(padrão: bool = False,
@@ -50,7 +61,7 @@ def interativo(padrão: bool = False,
     elif sementes is not None:
         for sem in sementes:
             amb = execução_típica(gerações,
-                                  semente=sem,
+                                  sem=sem,
                                   construtores=(AmbienteDeProjeto, ProblemaDefinido, parâmetros_do_problema))
     else:
         amb = execução_típica(gerações, construtores=(AmbienteDeProjeto, ProblemaDefinido, parâmetros_do_problema))
@@ -58,13 +69,13 @@ def interativo(padrão: bool = False,
     return amb
 
 
-def _listar_e_escolher(alternativa: str,
+def _listar_e_escolher(categoria: str,
                        situação_de_projeto: str = "None",
                        situação_escolhida: bool = True
                        ) -> str:
 
-    caminho = ((raiz / "situações_de_projeto" / situação_de_projeto / alternativa) if situação_escolhida
-               else (raiz / alternativa))
+    caminho = ((raiz / "situações_de_projeto" / situação_de_projeto / categoria) if situação_escolhida
+               else (raiz / categoria))
 
     alternativas = [alt for alt in os.listdir(caminho) if not alt.startswith("__")]
 
@@ -73,7 +84,7 @@ def _listar_e_escolher(alternativa: str,
               else f"  {i + 1}. {_formatação_casos_mistos(alt)}"
               for i, alt in enumerate(alternativas)]
 
-    print(f"> Escolha dentre os(as) {_formatação_casos_mistos(alternativa)}")
+    print(f"> Escolha dentre os(as) {_formatação_casos_mistos(categoria)}")
     for opção in opções:
         print(opção)
     optada = int(input(">>>"))
@@ -89,7 +100,6 @@ def _formatação_casos_mistos(s: str, reunir: str = " ") -> str:
 
 
 def conseguir_construtores() -> ConjuntoDeConstrutores:
-
     # Alcança e processa os parâmetros do problema
     with open(raiz / "situações_de_projeto" / situação_de_projeto / "parâmetros" / parâmetros,
               encoding="utf-8") as arquivo:
@@ -118,63 +128,34 @@ def _processar(parâmetros_do_problema: Dict[str, str]) -> None:
             parâmetros_do_problema[k] = int(v)
 
 
-def mudar_semente(sem: int) -> None:
-    global semente
-
-    seed(sem)
-    np.random.seed(sem)
-    semente = sem
-
-
-def mudar(variável: str, valor: Any = "valor", interativo: bool = False) -> None:
-    if interativo:
-        if variável == "situação_de_projeto":
-            valor = _listar_e_escolher("situações_de_projeto", situação_escolhida=False)
-        else:
-            valor = _listar_e_escolher(variável if variável.endswith("s") else variável + "s", situação_de_projeto)
-
-    globals().update({variável: valor})
-
-
 def execução_completa(amb: Optional[Ambiente] = None,
                       construtores: Optional[ConjuntoDeConstrutores] = None
                       ) -> Ambiente:
     for semente in range(10 + 1):
-        amb = execução_típica(300, construtores=construtores, semente=semente)
+        amb = execução_típica(300, construtores=construtores, sem=semente)
     return amb
 
 
 def execução_típica(n: int,
-                    semente: int = 0,
+                    sem: int = 0,
                     amb: Optional[Ambiente] = None,
                     construtores: Optional[ConjuntoDeConstrutores] = None
                     ) -> Ambiente:
-
-    mudar_semente(semente)
+    amb = _iniciar_ambiente(sem, amb, construtores)
 
     print(f">> Executando: \n"
           f"       {ambiente[:-3]}({problema[:-3]}({parâmetros[:-5]})),\n"
-          f"       semente={semente}\n")
-
-    if construtores:
-        Amb, Prob, Param = construtores
-        amb = Amb(Prob(Param))
+          f"       semente={sem}\n")
 
     for k in range(amb.n_da_geração, amb.n_da_geração + n):
         amb.próxima_geração()
 
         if k % 10 == 0:
-            filtrar_informações(amb)
-
+            _filtrar_informações(amb)
         if k % 100 == 0:
             salvar_estado(amb)
 
-        if hasattr(amb, "índice_de_convergência"):
-            idc = amb.índice_de_convergência
-        else:
-            _, idc = calcular_convergência(amb)
-
-        if idc >= 0.95:
+        if _índice_de_convergência_limite_atingido(amb, limite=0.95):
             print("------------------------------------------------------\n"
                   "Evolução parada por índice de convergência superar 95%\n\n")
             break
@@ -187,7 +168,32 @@ def execução_típica(n: int,
     return amb
 
 
-def filtrar_informações(amb: Ambiente) -> None:
+def _iniciar_ambiente(sem: int, amb: Ambiente, construtores: ConjuntoDeConstrutores) -> Ambiente:
+    if not ((amb is None) ^ (construtores is None)):
+        raise ValueError(f"Um, e apenas um, dentre o Ambiente ou o Conjunto de Construtores deve ser fornecido. "
+                         f"Ambiente fornecido: {amb is not None}. Construtores fornecidos: {construtores is not None}")
+    if amb is None:
+        mudar_semente(sem)
+    else:
+        global semente
+        semente = sem
+
+    if construtores:
+        Amb, Prob, Param = construtores
+        amb = Amb(Prob(Param))
+
+    return amb
+
+
+def mudar_semente(sem: int) -> None:
+    global semente
+
+    random.seed(sem)
+    np.random.seed(sem)
+    semente = sem
+
+
+def _filtrar_informações(amb: Ambiente) -> None:
     global info_gerações
     for gen in amb.gerações:
         adpts = [ind.adaptação for ind in gen]
@@ -196,7 +202,7 @@ def filtrar_informações(amb: Ambiente) -> None:
 
 
 def salvar_estado(amb: Ambiente) -> None:
-    caminho = localização_dos_dados(amb.n_da_geração, semente)
+    caminho = _localização_dos_dados(amb.n_da_geração, semente)
     caminho.mkdir(parents=True, exist_ok=True)
 
     with open(caminho / "população.b", "wb") as backup:
@@ -206,33 +212,10 @@ def salvar_estado(amb: Ambiente) -> None:
         pickle.dump(np.random.get_state(), backup)
 
     with open(caminho / "estado_do_random.b", "wb") as backup:
-        pickle.dump(getstate(), backup)
+        pickle.dump(random.getstate(), backup)
 
 
-def carregar_estado(semente: int = 0, geração: int = 1) -> Optional[Ambiente]:
-    caminho = localização_dos_dados(geração, semente)
-
-    try:
-        with open(caminho / "população.b", "rb") as backup:
-            pop = pickle.load(backup)
-
-        with open(caminho / "estado_do_numpy.b", "rb") as backup:
-            estado = pickle.load(backup)
-            np.random.set_state(estado)
-
-        with open(caminho / "estado_do_random.b", "rb") as backup:
-            estado = pickle.load(backup)
-            setstate(estado)
-
-        print("> Estados dos geradores de números aleatórios redefinidos para quando o backup foi feito")
-
-        return pop
-
-    except FileNotFoundError:
-        print(f"> Não há registros da geração {geração} começada com a semente {semente}")
-
-
-def localização_dos_dados(geração: int, semente: int) -> Path:
+def _localização_dos_dados(geração: int, semente: int) -> Path:
     pasta_da_situação = raiz / "situações_de_projeto" / situação_de_projeto
     pasta_da_semente = f"semente_{semente}"
     pasta_da_geração = f"geração_{geração}"
@@ -244,6 +227,16 @@ def localização_dos_dados(geração: int, semente: int) -> Path:
     return caminho
 
 
+def _índice_de_convergência_limite_atingido(amb: 'Ambiente', limite: float = 0.95) -> bool:
+    índice_de_convergência: float
+    if hasattr(amb, "índice_de_convergência"):
+        índice_de_convergência = amb.índice_de_convergência
+    else:
+        _, índice_de_convergência = calcular_convergência(amb)
+
+    return índice_de_convergência >= limite
+
+
 def salvar_resultado(amb: Ambiente) -> None:
     salvar_estado(amb)
 
@@ -253,9 +246,9 @@ def salvar_resultado(amb: Ambiente) -> None:
     caminho = raiz / "situações_de_projeto" / situação_de_projeto / "resultados" / pasta_do_contexto
     caminho.mkdir(parents=True, exist_ok=True)
 
-    try:
+    if (caminho / "comparação_de_resultados.csv").exists():
         tabela = pd.read_csv(caminho / "comparação_de_resultados.csv")
-    except FileNotFoundError:
+    else:
         tabela = pd.DataFrame(columns=["Semente", "Gerações", "Indivíduo_mais_apto",
                                        "Adaptação", "Índice_de_Convergência", "alfa_0", "e"])
 
@@ -275,3 +268,26 @@ def salvar_resultado(amb: Ambiente) -> None:
     tabela.to_csv(caminho / "comparação_de_resultados.csv", index=False)
 
     mostrar_ambiente(amb, semente=semente, arquivo=(caminho / f"semente_{semente}.png"))
+
+
+def carregar_estado(semente: int = 0, geração: int = 1) -> Optional[Ambiente]:
+    caminho = _localização_dos_dados(geração, semente)
+
+    try:
+        with open(caminho / "população.b", "rb") as backup:
+            amb = pickle.load(backup)
+
+        with open(caminho / "estado_do_numpy.b", "rb") as backup:
+            estado = pickle.load(backup)
+            np.random.set_state(estado)
+
+        with open(caminho / "estado_do_random.b", "rb") as backup:
+            estado = pickle.load(backup)
+            random.setstate(estado)
+
+        print("> Estados dos geradores de números aleatórios redefinidos para quando o backup foi feito")
+
+        return amb
+
+    except FileNotFoundError:
+        print(f"> Não há registros da geração {geração} começada com a semente {semente}")
