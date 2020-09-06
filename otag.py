@@ -76,9 +76,9 @@ def _listar_e_escolher(alternativa: str,
     print(f"> Escolha dentre os(as) {_formatação_casos_mistos(alternativa)}")
     for opção in opções:
         print(opção)
-    optada = int(input(">>>")) - 1
+    optada = int(input(">>>"))
 
-    return alternativas[optada]
+    return alternativas[optada - 1]
 
 
 _exceções = ["em", "de", "do", "dos", "da", "das", "no", "nos", "na", "nas", "e", "o", "os", "a", "as"]
@@ -97,8 +97,9 @@ def conseguir_construtores() -> ConjuntoDeConstrutores:
         _processar(parâmetros_do_problema)
 
     # Alcança a definição do problema
+    nome_da_classe_do_problema = "".join(p.capitalize() for p in situação_de_projeto.split("_"))
     módulo_do_problema = import_module(f"situações_de_projeto.{situação_de_projeto}.problemas.{problema[:-3]}")
-    ProblemaDefinido = getattr(módulo_do_problema, "".join(p.capitalize() for p in situação_de_projeto.split("_")))
+    ProblemaDefinido = getattr(módulo_do_problema, nome_da_classe_do_problema)
 
     # Alcança o ambiente de projeto
     módulo_do_ambiente = import_module(f"situações_de_projeto.{situação_de_projeto}.ambientes.{ambiente[:-3]}")
