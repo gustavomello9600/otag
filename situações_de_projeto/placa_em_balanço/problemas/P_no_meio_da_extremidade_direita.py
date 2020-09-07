@@ -1,4 +1,3 @@
-import math
 from collections import OrderedDict
 from random import choice, shuffle
 

@@ -82,9 +82,8 @@ class Nó:
         if self.etiqueta is not None:
             if self.etiqueta == other.etiqueta:
                 return True
-        else:
-            return (isclose(self.x, other.x, rel_tol=self.tolerância_na_comparação)
-                    and isclose(self.y, other.y, rel_tol=self.tolerância_na_comparação))
+        return (isclose(self.x, other.x, rel_tol=self.tolerância_na_comparação)
+                and isclose(self.y, other.y, rel_tol=self.tolerância_na_comparação))
 
 
 class KeBase(ABC):
