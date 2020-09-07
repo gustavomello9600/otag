@@ -1,13 +1,15 @@
 from typing import Dict, Tuple
 from dataclasses import dataclass
 
-from sympy import diff, sqrt, symbols, simplify, Matrix, Symbol, MatrixSymbol
+from sympy import diff, sqrt, symbols, Matrix, Symbol, MatrixSymbol
 
-from suporte.elementos_finitos import Elemento, KeBase, MatrizSimbólica
+from suporte.elementos_finitos import Nó, Elemento, KeBase, MatrizSimbólica
 
 
 @dataclass
 class MembranaQuadrada(Elemento):
+
+    nós: Tuple[Nó, Nó, Nó, Nó]
 
     def traçar_bordas(self) -> None:
         self.bordas = tuple(
@@ -15,11 +17,11 @@ class MembranaQuadrada(Elemento):
                         for i, nó in enumerate(self.nós)
                       )
 
-    def __str__(self):
-        borda_superior = f"({self.nós[0].x}, {self.nós[0].y}) — ({self.nós[1].x}, {self.nós[1].y})"
-        borda_inferior = f"({self.nós[3].x}, {self.nós[3].y}) — ({self.nós[2].x}, {self.nós[2].y})"
-        meio = "|" + (max([len(borda_superior), len(borda_inferior)]) - 2) * " " + "|"
-        return "\n".join([borda_superior, meio, borda_inferior])
+    def __str__(self) -> str:
+        superior = "({0.x: >5.2f}, {0.y: >5.2f}) - ({1.x: >5.2f}, {1.y: >5.2f})".format(*self.nós)
+        inferior = "({3.x: >5.2f}, {3.y: >5.2f}) - ({2.x: >5.2f}, {2.y: >5.2f})".format(*self.nós)
+        meio = "|" + (max([len(superior), len(inferior)]) - 2) * " " + "|"
+        return "\n".join([superior, meio, inferior])
 
 
 class KeMembranaQuadrada(KeBase):
@@ -45,7 +47,7 @@ class KeMembranaQuadrada(KeBase):
         Ns = [0, N1_expr, N2_expr, N3_expr, N4_expr]
         for i in (x, y):
             for k in range(1, 4 + 1):
-                N[(i, k)] = simplify((diff(Ns[k], qsi) * diff(qsi_x, i) + diff(Ns[k], eta) * diff(eta_y, i)))
+                N[(i, k)] = (diff(Ns[k], qsi) * diff(qsi_x, i) + diff(Ns[k], eta) * diff(eta_y, i))
 
         B_matrix = Matrix([[N[(x, (i // 2) + 1)] if i % 2 == 0 else 0 for i in range(8)],
                            [N[(y, (i // 2) + 1)] if i % 2 == 1 else 0 for i in range(8)],
@@ -55,9 +57,9 @@ class KeMembranaQuadrada(KeBase):
 
         t, v, E = symbols("t nu E")
         E_m = MatrixSymbol("E", 3, 3)
-        E_matrix = simplify((E / (1 - v ** 2)) * Matrix([[1, v,           0],
-                                                         [v, 1,           0],
-                                                         [0, 0, (1 - v) / 2]]))
+        E_matrix = (E / (1 - v ** 2)) * Matrix([[1, v,           0],
+                                                [v, 1,           0],
+                                                [0, 0, (1 - v) / 2]])
 
         K_matriz = B.T * E_m * B
         K_matriz = K_matriz.subs({E_m: E_matrix, B: B_matrix}).doit()

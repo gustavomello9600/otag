@@ -131,6 +131,7 @@ class Ambiente(ABC):
         """Checa se o gene do indivíduo já teve sua adaptação testada e armazena os valores já calculados."""
         if ind.id in self.genes_testados.keys():
             ind.adaptação = self.genes_testados[ind.id]
+            ind.adaptação_testada = True
         else:
             self.testar_adaptação(ind)
             self.genes_testados[ind.id] = ind.adaptação

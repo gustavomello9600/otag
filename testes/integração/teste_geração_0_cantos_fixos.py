@@ -14,17 +14,18 @@ def teste_geração_0():
 
     genes = geração_0(PlacaEmBalanço)
 
-    assert len(genes) == 100
+    assert len(genes) == 125
     assert isinstance(genes[0], np.ndarray)
 
-    np.random.seed(0)
-    random.seed(0)
-    for gene in genes:
-        proj = Mock()
-        proj.gene = gene
-        figura, gráfico = plt.subplots()
-        plotar_gene(proj, gráfico)
-        plt.show()
+    if __name__ == "__main__":
+        np.random.seed(0)
+        random.seed(0)
+        for gene in genes:
+            proj = Mock()
+            proj.gene = gene
+            figura, gráfico = plt.subplots()
+            plotar_gene(proj, gráfico)
+            plt.show()
 
 
 if __name__ == '__main__':

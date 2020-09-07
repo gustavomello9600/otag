@@ -23,8 +23,8 @@ import numpy as np
 
 
 Real = Union[int, float]
-Vetor = MutableSequence[Real]
-Matriz = MutableSequence[Vetor]
+Vetor = Union[MutableSequence[Real], np.ndarray]
+Matriz = Union[MutableSequence[Vetor], np.ndarray]
 
 MatrizSimbólica = sympy.Matrix
 SímboloDeVariável = sympy.Symbol
@@ -79,8 +79,9 @@ class Nó:
     etiqueta: Any = field(default=None, hash=True)
 
     def __eq__(self, other):
-        if self.etiqueta == other.etiqueta:
-            return True
+        if self.etiqueta is not None:
+            if self.etiqueta == other.etiqueta:
+                return True
         else:
             return (isclose(self.x, other.x, rel_tol=self.tolerância_na_comparação)
                     and isclose(self.y, other.y, rel_tol=self.tolerância_na_comparação))

@@ -562,13 +562,6 @@ class PlacaEmBalanço(Problema):
         if self.Ke is None:
             self.Ke = K_base.calcular(parâmetros_do_elemento_base)
 
-            l = parâmetros_do_elemento_base['l']
-            t = parâmetros_do_elemento_base['t']
-            v = parâmetros_do_elemento_base['v']
-            E = parâmetros_do_elemento_base['E']
-
-            assert math.isclose(self.Ke[0, 0], (2 * t * E * (v - 3)) / (3 * (l ** 2) * (v ** 2 - 1)))
-
         return self.Ke
 
     @Monitorador(mensagem="Matriz de rigidez global montada")
