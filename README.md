@@ -21,18 +21,20 @@ Design Generativo com Python é uma biblioteca que implementa abstrações capaz
 * Código dos módulos de suporte 100% cobertos por testes.
 
 ## Sumário
-* Versões da Arquitetura
-  * v1.0
-    * Dependências & Aplicações
-  * v1.1
-    * Mudanças
-    * Estrutura de Pastas
-* Guia de uso (v1.1)
-  * Definição de Problema
-  * Definição de Ambiente
-  * Utilizando a Fachada
-  * Outras funcionalidades
-* Sobre o autor
+  * [Versões da Arquitetura](#vers-es-da-arquitetura)
+    + [Arquitetura v1.0](#arquitetura-v10)
+      - [Interpretador](#interpretador)
+      - [Algoritmo Genético](#algoritmo-gen-tico)
+      - [Modelo de Discretização](#modelo-de-discretiza--o)
+      - [Definição de Problema](#defini--o-de-problema)
+      - [Situação de Projeto](#situa--o-de-projeto)
+      - [Fachada](#fachada)
+      - [Visualizador](#visualizador)
+    + [Arquitetura v1.1](#arquitetura-v11)
+      - [Parâmetros, Ambiente de Projeto e Problema Específico](#par-metros--ambiente-de-projeto-e-problema-espec-fico)
+      - [Estrutura de pastas](#estrutura-de-pastas)
+  * [Como Usar](#como-usar)
+  * [Sobre o Autor](#sobre-o-autor)
 
 ## Versões da Arquitetura
 
