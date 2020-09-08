@@ -150,16 +150,16 @@ $ tree
 1. Crie uma pasta para a situação de projeto e três subpastas: **ambientes**, **problemas** e **parâmetros**.
 ```
 .
-├── situações_de_projeto
-│   ├── situação_exemplo
-│   │   ├── ambientes
-│   │   │   ├── __init__.py
-│   │   │   └── ambiente_exemplo.py
-│   │   ├── parâmetros
-│   │   │   └── padrão.json
-│   │   ├── problemas
-│   │   │   ├── __init__.py
-│   │   │   └── problema_exemplo.py
+└── situações_de_projeto
+    └── situação_exemplo
+        ├── ambientes
+        │   ├── __init__.py
+        │   └── ambiente_exemplo.py
+        ├── parâmetros
+        │   └── padrão.json
+        └── problemas
+            ├── __init__.py
+            └── problema_exemplo.py
 ```
 2. Dentro da pasta **ambientes**, crie um arquivo como `ambiente_exemplo.py` e implemente a classe `AmbienteDeProjeto`
 com no mínimo os mesmos métodos.
