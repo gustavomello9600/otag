@@ -176,7 +176,7 @@ class Ambiente(ABC):
 
     @abstractmethod
     def crossover(self, pai1: 'Indivíduo', pai2: 'Indivíduo', i: int) -> 'Indivíduo':
-        """ Gerará um novo indivíduo a partir do cruzamento dos genes de seus pais."""
+        """Gerará um novo indivíduo a partir do cruzamento dos genes de seus pais."""
 
     @abstractmethod
     def mutação(self, geração: List['Indivíduo']) -> None:

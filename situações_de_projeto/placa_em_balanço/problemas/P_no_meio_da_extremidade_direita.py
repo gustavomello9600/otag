@@ -1,43 +1,21 @@
+from itertools import product as produto_cartesiano
 from collections import OrderedDict
-from random import choice, shuffle
+from typing import List, Tuple, Dict, Union, Optional, Callable
+import random
 
 import numpy as np
 
-from suporte.elementos_finitos import Malha, Nó
-from suporte.elementos_finitos.definição_de_problema import Problema
+from suporte.elementos_finitos import Malha, Nó, Matriz, Vetor
+from suporte.elementos_finitos.definição_de_problema import Problema, Máscara
 from suporte.elementos_finitos.membrana_quadrada import MembranaQuadrada, K_base
 
 
+Gene = Matriz
+FunçãoMontadora = Callable[[Malha, Matriz, int], Matriz]
+
+
 class PlacaEmBalanço(Problema):
-    """
-    Implementação do problema da Placa em Balanço 2x1
-
-    Métodos
-    -------
-    determinar_gene_útil(gene: np.array((38, 76)), l: int) -> gene_útil: np.array((38, 76)), borda_alcançada: bool,
-                                                              elementos: List[Elemento], nós: List[Nó],
-                                                              me: np.array((8, ne))
-        Executa um algoritmo de busca responsável por determinar, para um certo gene cuja expressão fenotípica é dada
-        por uma malha de elementos quadrados de lado l, a maior porção contínua de matéria satisfazendo as restrições do
-        problema, isto é, estar conectada simultaneamente ao ponto de aplicação da força e à borda.
-    adicionar_à_malha_o_elemento_em(i: int, j: int, contexto: tuple) -> None
-        Cria o elemento em i, j atualizando a matriz de correspondência entre índices globais e locais.
-    remover_de(possíveis_ramificações: list, i: int, j: int) -> None
-        Caso seja uma candidata, remove a posição i, j da lista de possíveis ramificações da árvore de busca.
-
-
-    ESTÁTICOS (AUXILIARES)
-    ---------
-    fatiar_intervalo(c: int, t: int, f: int, dividir_ao_meio: bool) -> ks: List[int]
-        Fatia aleatoriamente um intervalo de comprimento c em f fatias (ou subintervalos) de comprimento mínimo t
-        e retorna uma lista com os índices correspondentes aos pontos de corte.
-    distribuir(folga: int, fatias: int) -> distribuição: List[int]
-        Distribui uma folga aleatoriamente dentre um dado número de fatias.
-    caminhar_até_a_borda(i_partida: int, j_partida: int) -> I: List[int], J: List[int]
-        Caminha aleatoriamente por um grafo desde o ponto de aplicação da força até uma borda.
-    formar_a_partir_do(grafo: np.array((7, 14), kis: List[int], kjs: List[int]) -> gene: np.array((38, 76))
-        Recupera a informação do grafo de partição do espaço de projeto para formar o gene.
-    """
+    """Implementação do problema da Placa em Balanço 2x1"""
 
     Monitorador = Problema.Monitorador
 
@@ -50,20 +28,30 @@ class PlacaEmBalanço(Problema):
         self._iniciar_resolvedor()
 
     def _digerir(self, parâmetros_do_problema):
-        self.Dlim = parâmetros_do_problema["DESLOCAMENTO_LIMITE_DO_MATERIAL"]
-        self.lado_dos_elementos = 1 / parâmetros_do_problema["ORDEM_DE_REFINAMENTO_DA_MALHA"]
-        self._método_padrão = parâmetros_do_problema["MÉTODO_PADRÃO_DE_MONTAGEM_DA_MATRIZ_DE_RIGIDEZ_GERAL"]
-        self.alfa = self.alfa_0 = parâmetros_do_problema["CONSTANTE_DE_PENALIZAÇÃO_SOB_DESLOCAMENTO_EXCEDENTE"]
-        self.e = parâmetros_do_problema["CONSTANTE_DE_PENALIZAÇÃO_DA_ÁREA_DESCONECTADA"]
+        self.n: int = parâmetros_do_problema["ORDEM_DE_REFINAMENTO_DA_MALHA"]
+        if self.n % 2 != 0:
+            raise ValueError(f"A ordem de refinamento da malha deve ser par. {self.n} fornecido.")
+        if self.n < 7:
+            raise ValueError(f"A ordem de refinamento da malha deve ser maior que 7. {self.n} fornecido.")
+
+        self._método_padrão    : str   = parâmetros_do_problema["MÉTODO_PADRÃO_DE_MONTAGEM_DA_MATRIZ_DE_RIGIDEZ_GERAL"]
+        self.Dlim              : float = parâmetros_do_problema["DESLOCAMENTO_LIMITE_DO_MATERIAL"]
+        self.alfa_0            : float = parâmetros_do_problema["CONSTANTE_DE_PENALIZAÇÃO_SOB_DESLOCAMENTO_EXCEDENTE"]
+        self.e                 : float = parâmetros_do_problema["CONSTANTE_DE_PENALIZAÇÃO_DA_ÁREA_DESCONECTADA"]
+
+        self.lado_dos_elementos = 1/self.n
+        self.alfa = self.alfa_0
 
     def _iniciar_resolvedor(self):
-        self.Ke = None
-        self._montador_do = {"expansão": self.montador_expansão,
-                             "compacto": self.montador_compacto,
-                             "OptV1": self.montador_OptV1,
-                             "OptV2": self.montador_OptV2}
+        self.Ke: Optional[Matriz] = None
+        self._montador_do: Dict[str, FunçãoMontadora] = {
+            "expansão": self.montador_expansão,
+            "compacto": self.montador_compacto,
+            "OptV1": self.montador_OptV1,
+            "OptV2": self.montador_OptV2
+        }
 
-    def geração_0(self, n_de_indivíduos=125, t=4):
+    def geração_0(self, n_de_indivíduos: int = 125, espessura_interna_mínima: int = 4) -> List[Gene]:
         """
         Gera aleatoriamente 100 projetos de espessura interna mínima igual a t que estão conectados à borda
         e ao ponto de aplicação da carga.
@@ -73,14 +61,6 @@ class PlacaEmBalanço(Problema):
         o ponto de aplicação da carga até a borda. Os nós pertencentes à trajetória percorrida no grafo recebem o valor
         1. O grafo é então traduzido para um gene que inicia uma instância da classe Projeto. Este processo é repetido
         e o resultado de 100 iterações é retornado numa lista.
-
-        Argumentos
-        ----------
-        t: int -- Espessura interna mínima
-
-        Retorna
-        -------
-        projetos: List[Projetos] -- Instâncias da classe Projeto que carregam genes adequados ao problema
         """
 
         genes = []
@@ -89,111 +69,93 @@ class PlacaEmBalanço(Problema):
             grafo = np.random.choice((True, False), (7, 14))
 
             # Determina os pontos de corte e retorna seus índices i e j
-            kis = self._fatiar_intervalo(c=38, t=t, f=7, dividir_ao_meio=True)
-            kjs = self._fatiar_intervalo(c=76, t=t, f=14, dividir_ao_meio=False)
+            pontos_de_corte_horizontal = self._fatiar_intervalo(comprimento_total=self.n,
+                                                                número_de_fatias=7,
+                                                                dividir_ao_meio=True,
+                                                                comprimento_mínimo_das_fatias=espessura_interna_mínima)
+            pontos_de_corte_vertical = self._fatiar_intervalo(comprimento_total=2*self.n,
+                                                              número_de_fatias=14,
+                                                              dividir_ao_meio=False,
+                                                              comprimento_mínimo_das_fatias=espessura_interna_mínima)
 
             # Caminha aleatoriamente pelo grafo desde o ponto de aplicação da força até uma borda,
             # preenchendo as fatias ao longo da trajetória
-            trajetória = self._caminhar_até_a_borda(i_partida=int(np.where(kis == 19)[0]), j_partida=13)
+            trajetória = self._caminhar_até_a_borda(
+                i_partida=int(np.where(pontos_de_corte_horizontal == int(self.n//2))[0]),
+                j_partida=13
+            )
             grafo[trajetória[0], trajetória[1]] = 1
 
-            gene = self._formar_gene_a_partir_do(grafo, kis, kjs)
+            gene = self._formar_gene_a_partir_do(grafo,
+                                                 pontos_de_corte_vertical=pontos_de_corte_vertical,
+                                                 pontos_de_corte_horizontal=pontos_de_corte_horizontal)
 
             genes.append(gene)
 
         return genes
 
     @staticmethod
-    def _fatiar_intervalo(c=38, t=4, f=7, dividir_ao_meio=False):
-        """
-        Fatia aleatoriamente um intervalo de comprimento c em f fatias (ou subintervalos) de comprimento mínimo t
-        e retorna uma lista com os índices correspondentes aos pontos de corte.
-
-        Argumentos
-        ----------
-        c              : int  -- Comprimento do intervalo original
-        t              : int  -- Espessura mínima
-        f              : int  -- Número de fatias
-        dividir_ao_meio: bool -- Determina se é obrigatório dividir o intervalo de comprimento c na posição c // 2
-
-        Retorna
-        -------
-        ks             : list -- Lista de índices dos pontos de corte
-        """
+    def _fatiar_intervalo(comprimento_total: int = 38, número_de_fatias: int = 7,
+                          comprimento_mínimo_das_fatias: int = 4, dividir_ao_meio: bool = False
+                          ) -> Vetor:
+        """Fatia aleatoriamente um intervalo de comprimento c em f fatias (ou subintervalos) de comprimento mínimo t
+        e retorna um vetor com números inteiros correspondentes aos índices dos pontos de corte."""
 
         # Calcula a folga do intervalo para a divisão esperada
-        folga = c - f * t
+        folga = comprimento_total - número_de_fatias * comprimento_mínimo_das_fatias
         if folga <= 0:
-            raise ValueError(f"Impossível dividir intervalo de comprimento "
-                             f"{c} em {f} fatias com {t} de comprimento mínimo")
+            raise ValueError(f"Impossível dividir intervalo de comprimento {comprimento_total} em "
+                             f"{número_de_fatias} fatias com {comprimento_mínimo_das_fatias} de comprimento mínimo")
 
-        # Abreviação do nome da classe usada para simplificar a chamada do método estático "distribuir"
+        # Abreviação do nome da classe usada para simplificar a chamada de métodos estáticos
         peb = PlacaEmBalanço
 
         # Calcula os índices como o resultado da soma cumulativa do vetor que contém o comprimento de cada
         # subintervalo tomado como o comprimento mínimo somado a uma distribuição aleatória da folga
-        ks = np.cumsum([0] + list(np.array(f * [t]) + np.array(peb._distribuir(folga, f))))
+        índices_dos_pontos_de_corte = np.cumsum([0] + list(np.array(número_de_fatias * [comprimento_mínimo_das_fatias])
+                                                           + np.array(peb._distribuir(folga, número_de_fatias))))
 
         # Corrige a divisão quando se deseja que haja um corte em c // 2
         if dividir_ao_meio:
-            for i, k in enumerate(ks):
-                if k >= c / 2:
-                    if k == c / 2:
-                        break
-                    ks[i - 1] = c / 2
-                    j = i
-                    while ks[j] - ks[j - 1] < t:
-                        ks[j] += t - (ks[j] - ks[j - 1])
-                        if j == len(ks) - 1:
-                            j = 1
-                        else:
-                            j += 1
-                    break
+            peb._adaptar_divisão(comprimento_total, índices_dos_pontos_de_corte, comprimento_mínimo_das_fatias)
 
-        return ks
+        return índices_dos_pontos_de_corte
 
     @staticmethod
-    def _distribuir(folga, fatias):
-        """
-        Distribui a folga aleatoriamente dentre as fatias
-
-        Argumentos
-        ----------
-        folga : int -- Tamanho da folga
-        fatias: int -- Número de fatias
-
-        Retorna
-        -------
-        distribuição: list -- Lista cujas posições contém a porção de folga que o intervalo correspondente recebeu
-        """
+    def _distribuir(folga: int, número_de_fatias: int) -> List[int]:
+        """Distribui a folga aleatoriamente dentre as fatias"""
 
         distribuição = []
-        for _ in range(fatias):
-            espaço_extra = choice(list(range(folga + 1)))
+        for _ in range(número_de_fatias):
+            espaço_extra = random.choice(list(range(folga + 1)))
             folga -= espaço_extra
             distribuição.append(espaço_extra)
 
         if folga > 0:
             distribuição[-1] += folga
 
-        shuffle(distribuição)
+        random.shuffle(distribuição)
         return distribuição
 
     @staticmethod
-    def _caminhar_até_a_borda(i_partida=0, j_partida=13):
-        """
-        Caminha aleatoriamente pelo grafo desde o ponto de aplicação da força até uma borda.
+    def _adaptar_divisão(comprimento_total: int, pontos_de_corte: Vetor, comprimento_mínimo_das_fatias: int) -> None:
+        for i, ponto_de_corte in enumerate(pontos_de_corte):
+            if ponto_de_corte >= comprimento_total / 2:
+                if ponto_de_corte == comprimento_total / 2:
+                    break
+                pontos_de_corte[i - 1] = comprimento_total / 2
+                j = i
+                while pontos_de_corte[j] - pontos_de_corte[j - 1] < comprimento_mínimo_das_fatias:
+                    pontos_de_corte[j] += comprimento_mínimo_das_fatias - (pontos_de_corte[j] - pontos_de_corte[j - 1])
+                    if j == len(pontos_de_corte) - 1:
+                        j = 1
+                    else:
+                        j += 1
+                break
 
-        Argumentos
-        ----------
-        i_partida: int -- Índice da linha do grafo onde a caminhada começa
-        j_partida: int -- Índice da coluna do grafo onde a caminhada começa
-
-        Retorna
-        -------
-        I: List[int] -- Lista ordenada dos índices de linha de todos os nós do grafo por onde se passou
-        J: List[int] -- Lista ordenada dos índices de coluna de todos os nós do grafo por onde se passou
-        """
+    @staticmethod
+    def _caminhar_até_a_borda(i_partida: int = 0, j_partida: int = 13) -> Tuple[List[int], List[int]]:
+        """Caminha aleatoriamente pelo grafo desde o ponto de aplicação da força até uma borda.̉"""
 
         I = []
         J = []
@@ -251,35 +213,27 @@ class PlacaEmBalanço(Problema):
 
         return I, J
 
-    @staticmethod
-    def _formar_gene_a_partir_do(grafo, kis, kjs):
-        """
-        Recupera a informação do grafo de partição do espaço de projeto para formar o gene.
+    def _formar_gene_a_partir_do(self,
+                                 grafo: Matriz,
+                                 pontos_de_corte_vertical: Vetor,
+                                 pontos_de_corte_horizontal: Vetor
+                                 ) -> Gene:
+        """Recupera a informação do grafo de partição do espaço de projeto para formar o gene."""
 
-        Argumentos
-        ----------
-        grafo: np.array(( 7, 14)) -- Grafo binário da partição do espaço de projeto
-        kis  : List[int]          -- Índices de cortes horizontais do gene
-        kjs  : List[int]          -- Índices de cortes verticais do gene
+        gene = np.zeros((self.n, 2*self.n), dtype=bool)
 
-        Retorna
-        -------
-        gene : np.array((38, 76)) -- Gene de Projeto que satisfaz as restrições do problema
-        """
-
-        gene = np.zeros((38, 76), dtype=bool)
-
-        for i in range(7):
-            for j in range(14):
-                gene[kis[i]:kis[i + 1], kjs[j]:kjs[j + 1]] = grafo[i][j]
+        for i, j in produto_cartesiano(range(7), range(14)):
+            gene[pontos_de_corte_horizontal[i]:pontos_de_corte_horizontal[i + 1],
+                 pontos_de_corte_vertical[j]:pontos_de_corte_vertical[j + 1]] = grafo[i][j]
 
         return gene
 
-    def testar_adaptação(self, ind):
+    def testar_adaptação(self, proj: 'Projeto') -> None:
         """
-        Invoca um método que constrói o fenótipo do indivíduo, isto é, sua malha, a partir da porção útil do gene. Caso
-        a malha não esteja conectada à borda, atribui adaptação 0 ao indivíduo e sinaliza na saída do sistema. Caso es-
-        teja, verifica se um fenótipo idêntico já teve sua adaptação calculada. Caso não tenha, aplica o cálculo da a-
+        Constrói e testa o fenótipo do projeto.
+
+        Caso a malha não esteja conectada à borda, atribui adaptação 0 ao indivíduo e sinaliza na saída do sistema. Caso
+        esteja, verifica se um fenótipo idêntico já teve sua adaptação calculada. Caso não tenha, aplica o cálculo da a-
         daptação.
         """
 
@@ -287,61 +241,56 @@ class PlacaEmBalanço(Problema):
         l = self.lado_dos_elementos
 
         # Chama o algoritmo de identificação da porção útil do gene e construção do fenótipo.
-        fenótipo, borda_alcançada, elementos_conectados, nós, me = self._determinar_fenótipo(ind.gene, l)
+        fenótipo, borda_alcançada, elementos_conectados, nós, me = self._determinar_fenótipo(proj.gene, l)
 
-        if not self._atende_os_requisitos_mínimos(fenótipo, borda_alcançada):
-            print(f"> Indivíduo {ind.nome} desconectado da borda")
-            ind.adaptação = 0
-
+        if not self._atende_os_requisitos_mínimos(proj, fenótipo, borda_alcançada):
+            proj.adaptação = 0
         else:
             # Checa se este fenótipo já teve sua adaptação calculada antes
             if fenótipo.data.tobytes() in self.fenótipos_testados:
-
                 # Recupera a adaptação do cache
-                ind.adaptação, ind.f, ind.u, ind.malha = self.fenótipos_testados[fenótipo.data.tobytes()]
-                print(f"> Adaptação de {ind.nome} já era conhecida pelo seu fenótipo")
-
+                proj.adaptação, proj.f, proj.u, proj.malha = self.fenótipos_testados[fenótipo.data.tobytes()]
+                print(f"> Adaptação de {proj.nome} já era conhecida pelo seu fenótipo")
             else:
                 # Determina que os tempos de execução de cada etapa da análise por elementos_finitos
                 # finitos sejam mensurados cada vez que o nome do Projeto terminar em "1"
-                monitorar = ind.nome.endswith("1")
+                monitorar = proj.nome.endswith("1")
 
-                ind.f, ind.u, ind.malha = \
-                    self.resolver_para(
+                proj.f, proj.u, proj.malha = self.resolver_para(
 
-                        monitorar=monitorar,
-                        malha=Malha(elementos_conectados, nós, me),
-                        parâmetros_dos_elementos={"l": l,
-                                                  "t": self.parâmetros_do_problema["ESPESSURA_DO_ELEMENTO"],
-                                                  "v": self.parâmetros_do_problema["COEFICIENTE_DE_POYSSON"],
-                                                  "E": self.parâmetros_do_problema["MÓDULO_DE_YOUNG_DO_MATERIAL"]}
+                    monitorar=monitorar,
+                    malha=Malha(elementos_conectados, nós, me),
+                    parâmetros_dos_elementos={"l": l,
+                                              "t": self.parâmetros_do_problema["ESPESSURA_DO_ELEMENTO"],
+                                              "v": self.parâmetros_do_problema["COEFICIENTE_DE_POYSSON"],
+                                              "E": self.parâmetros_do_problema["MÓDULO_DE_YOUNG_DO_MATERIAL"]}
 
-                    )
+                )
 
                 # Determina as áreas conectadas e desconectadas
                 Acon = fenótipo.sum() * (l ** 2)
-                Ades = ind.gene.sum() * (l ** 2) - Acon
+                Ades = proj.gene.sum() * (l ** 2) - Acon
 
                 # Calcula o deslocamento máximo como a raiz quadrada do maior
                 # valor de u_x² + u_y² dentre todos os nós da malha
                 n = len(nós)
-                Dmax = np.sqrt(np.sum(ind.u.reshape((n, 2)) ** 2, axis=1).max())
+                Dmax = np.sqrt(np.sum(proj.u.reshape((n, 2)) ** 2, axis=1).max())
 
                 penalização = Dmax - self.Dlim if Dmax > self.Dlim else 0
 
                 if penalização:
-                    print(f"> Indivíduo {ind.nome} penalizado: Dmax - Dlim = {penalização:.3e} metros")
+                    print(f"> Projeto {proj.nome} penalizado: Dmax - Dlim = {penalização:.3e} metros")
 
-                ind.adaptação = 1 / (Acon + self.e * Ades + self.alfa * penalização)
+                proj.adaptação = 1 / (Acon + self.e * Ades + self.alfa * penalização)
 
-                print(f"> {ind.nome} conectado à borda. Adaptação: {ind.adaptação}")
+                print(f"> {proj.nome} conectado à borda. Adaptação: {proj.adaptação}")
 
-                self.fenótipos_testados[fenótipo.data.tobytes()] = ind.adaptação, ind.f, ind.u, ind.malha
+                self.fenótipos_testados[fenótipo.data.tobytes()] = proj.adaptação, proj.f, proj.u, proj.malha
 
-        ind.adaptação_testada = True
+        proj.adaptação_testada = True
 
-    @staticmethod
-    def _determinar_fenótipo(gene, l):
+    def _determinar_fenótipo(self, gene: Gene, l: float
+                             ) -> Tuple[Matriz, bool, List[MembranaQuadrada], List[Nó], Matriz]:
         """
         Executa um algoritmo de busca responsável por determinar, para um certo gene cuja expressão fenotípica é dada
         por uma malha de elementos_finitos quadrados de lado l, a maior porção contínua de matéria satisfazendo as res-
@@ -350,32 +299,18 @@ class PlacaEmBalanço(Problema):
         Também cuida de inicializar a malha correspondente à expressão fenotípica do gene e seus respectivos elementos e
         nós. Embora ter uma função que lide com tantas operações ao mesmo tempo não seja o padrão de programação
         recomendável na maioria dos casos, aqui se justifica pelo ganho em performance.
-
-        Argumentos
-        ----------
-        gene           : np.array((38, 76)) -- Matriz binária que carrega o código genético
-        l              : int                -- Comprimento do lado do elemento de membrana quadrado
-
-        Retorna
-        -------
-        gene_útil      : np.array((38, 76)) -- Matriz binária que carrega a porção do gene que forma o fenótipo
-        borda_alcançada: bool               -- O fenótipo se estende desde o ponto de aplicação da carga até a borda?
-        elementos      : list               -- Lista de Elementos que compõem a malha
-        nós            : list               -- Lista de Nós que compõem a malha
-        me             : np.array(( 8, ne)) -- Matriz de correspondência entre os índices locais e globais de cada grau
-                                               de liberdade
         """
-        gene_útil = np.zeros((38, 76), dtype=bool)
+        gene_útil = np.zeros((self.n, 2*self.n), dtype=bool)
 
         # Define a posição inicial do algoritmo de busca
-        i = 19
-        j = 75
+        i = int(self.n // 2)
+        j = 2*self.n - 1
 
         elementos = []
         nós = []
         me = []
 
-        # Inicializa listas auxiliares que ajudam a manter curso dos índices dos nós e elementos
+        # Inicializa estruturas de dados auxiliares que ajudam a manter curso dos índices dos nós e elementos
         etiquetas_de_elementos_já_construídos = set()
         etiquetas_de_nós_já_construídos = set()
         índice_na_malha = dict()
@@ -389,8 +324,8 @@ class PlacaEmBalanço(Problema):
         subida = False
 
         # Junta as variáveis importantes para métodos auxiliares
-        contexto = l, gene_útil, elementos, nós, me, etiquetas_de_nós_já_construídos, \
-                   etiquetas_de_elementos_já_construídos, índice_na_malha
+        contexto = (l, gene_útil, elementos, nós, me, índice_na_malha,
+                    etiquetas_de_nós_já_construídos, etiquetas_de_elementos_já_construídos)
 
         # Simplifica a chamada de métodos auxiliares
         peb = PlacaEmBalanço
@@ -405,14 +340,14 @@ class PlacaEmBalanço(Problema):
             while descida:
 
                 # consigo descer mais?
-                if i != 37:
+                if i != self.n - 1:
                     abaixo = gene[i + 1][j]
                     descida = abaixo
                 else:
                     descida = False
 
                 # há ramificações possíveis aqui do lado?
-                if j != 75 and último_movimento != "esquerda":
+                if j != 2*self.n - 1 and último_movimento != "esquerda":
                     direita = gene[i][j + 1]
                     if direita and not gene_útil[i][j + 1]:
                         possíveis_ramificações.add((i, j + 1, "direita"))
@@ -452,7 +387,7 @@ class PlacaEmBalanço(Problema):
                     subida = False
 
                 # há ramificações possíveis aqui do lado?
-                if j != 75 and último_movimento != "esquerda":
+                if j != 2*self.n - 1 and último_movimento != "esquerda":
                     direita = gene[i][j + 1]
                     if direita and not gene_útil[i][j + 1]:
                         possíveis_ramificações.add((i, j + 1, "direita"))
@@ -487,10 +422,10 @@ class PlacaEmBalanço(Problema):
         return gene_útil, borda_alcançada, elementos, nós, me
 
     @staticmethod
-    def _adicionar_à_malha_o_elemento_em(i, j, contexto):
+    def _adicionar_à_malha_o_elemento_em(i: int, j: int, contexto: tuple) -> None:
         # Recebe o contexto
-        l, gene_útil, elementos, nós, me, etiquetas_de_nós_já_construídos, \
-        etiquetas_de_elementos_já_construídos, índice_na_malha               = contexto
+        (l, gene_útil, elementos, nós, me, índice_na_malha,
+         etiquetas_de_nós_já_construídos, etiquetas_de_elementos_já_construídos) = contexto
 
         # Marca a posição como pertencente ao gene útil
         gene_útil[i][j] = True
@@ -543,32 +478,34 @@ class PlacaEmBalanço(Problema):
             etiquetas_de_elementos_já_construídos.add(ul.etiqueta)
 
     @staticmethod
-    def _remover_de(possíveis_ramificações, i, j):
+    def _remover_de(possíveis_ramificações: set, i: int, j: int) -> None:
         possíveis_ramificações.discard((i, j, "esquerda"))
         possíveis_ramificações.discard((i, j, "direita"))
 
     @staticmethod
-    def _atende_os_requisitos_mínimos(fenótipo, borda_alcançada):
+    def _atende_os_requisitos_mínimos(proj: 'Projeto', fenótipo: Matriz, borda_alcançada: bool) -> bool:
+        if not borda_alcançada:
+            print(f"> Projeto {proj.nome} desconectado da borda")
         return borda_alcançada
 
     # Métodos auxiliares da resolução via análise de elementos finitos
     @Monitorador(mensagem="Total de graus de liberdade determinados")
-    def determinar_graus_de_liberdade(self, malha):
+    def determinar_graus_de_liberdade(self, malha: Malha) -> int:
         return 2 * len(malha.nós)
 
     @Monitorador(mensagem="Matrizes de rigidez local determinadas")
-    def calcular_matrizes_de_rigidez_local(self, **parâmetros_do_elemento_base):
+    def calcular_matrizes_de_rigidez_local(self, **parâmetros_do_elemento_base) -> Matriz:
         if self.Ke is None:
             self.Ke = K_base.calcular(parâmetros_do_elemento_base)
 
         return self.Ke
 
     @Monitorador(mensagem="Matriz de rigidez global montada")
-    def montar_matriz_de_rigidez_geral(self, malha, Ke, graus_de_liberdade, método):
+    def montar_matriz_de_rigidez_geral(self, malha: Malha, Ke: Matriz, graus_de_liberdade: int, método: str) -> Matriz:
         return self._montador_do[método](malha, Ke, graus_de_liberdade)
 
     @staticmethod
-    def montador_expansão(malha, Ke, graus_de_liberdade):
+    def montador_expansão(malha: Malha, Ke: Matriz, graus_de_liberdade: int) -> Matriz:
         Kes_expandidos = dict()
         for elemento in malha.elementos:
             Ke_expandido = np.zeros((graus_de_liberdade, graus_de_liberdade))
@@ -584,31 +521,31 @@ class PlacaEmBalanço(Problema):
 
                     Ke_expandido[i][j] = Ke[ie][je]
 
-            Kes_expandidos[elemento] = Ke_expandido
+            Kes_expandidos[elemento.nós] = Ke_expandido
 
         return sum(Kes_expandidos.values())
 
     @staticmethod
-    def montador_compacto(malha, Ke, graus_de_liberdade):
+    def montador_compacto(malha: Malha, Ke: Matriz, graus_de_liberdade: int) -> Matriz:
         K = np.zeros((graus_de_liberdade, graus_de_liberdade))
 
         índices = dict()
         for elemento in malha.elementos:
-            índices[elemento] = np.array([[2 * malha.índice_de[n], 2 * malha.índice_de[n] + 1]
-                                          for n in elemento.nós]).flatten()
+            índices[elemento.nós] = np.array([[2 * malha.índice_de[n], 2 * malha.índice_de[n] + 1]
+                                               for n in elemento.nós]).flatten()
 
         for i in range(8):
             for j in range(8):
                 for e in malha.elementos:
-                    p = índices[e][i]
-                    q = índices[e][j]
+                    p = índices[e.nós][i]
+                    q = índices[e.nós][j]
 
                     K[p][q] += Ke[i][j]
 
         return K
 
     @staticmethod
-    def montador_OptV1(malha, Ke, graus_de_liberdade):
+    def montador_OptV1(malha: Malha, Ke: Matriz, graus_de_liberdade: int) -> Matriz:
         K = np.zeros((graus_de_liberdade, graus_de_liberdade), dtype=float)
 
         índices_de_Ke_por_elemento = ((e, i, j) for e in range(malha.ne)
@@ -621,7 +558,7 @@ class PlacaEmBalanço(Problema):
         return K
 
     @staticmethod
-    def montador_OptV2(malha, Ke, graus_de_liberdade):
+    def montador_OptV2(malha: Malha, Ke: Matriz, graus_de_liberdade: int) -> Matriz:
         K = np.zeros((graus_de_liberdade, graus_de_liberdade), dtype=float)
 
         índices_de_Ke = ((i, j) for i in range(8) for j in range(8))
@@ -632,7 +569,11 @@ class PlacaEmBalanço(Problema):
         return K
 
     @Monitorador(mensagem="Condições de contorno incorporadas")
-    def incorporar_condições_de_contorno(self, malha, graus_de_liberdade, parâmetros_do_problema):
+    def incorporar_condições_de_contorno(self,
+                                         malha: Malha,
+                                         graus_de_liberdade: int,
+                                         parâmetros_do_problema: Dict[str, Union[str, int, float]]
+                                         ) -> Tuple[Vetor, Vetor, Máscara, Máscara]:
         P = parâmetros_do_problema["MAGNITUDE_DA_CARGA_APLICADA"]
         n = parâmetros_do_problema["ORDEM_DE_REFINAMENTO_DA_MALHA"]
 

@@ -1,3 +1,5 @@
+from typing import List
+
 import numpy as np
 
 from situações_de_projeto.placa_em_balanço.problemas.P_no_meio_da_extremidade_direita import PlacaEmBalanço
@@ -5,7 +7,7 @@ from situações_de_projeto.placa_em_balanço.problemas.P_no_meio_da_extremidade
 
 class PlacaEmBalanço(PlacaEmBalanço):
 
-    def geração_0(self, n_de_indivíduos=125, t=4):
+    def geração_0(self, n_de_indivíduos: int = 125, espessura_interna_mínima: int = 4) -> List['Gene']:
         """
         Gera aleatoriamente 100 projetos de espessura interna mínima igual a t que estão conectados à borda
         e ao ponto de aplicação da carga.
@@ -15,14 +17,6 @@ class PlacaEmBalanço(PlacaEmBalanço):
         o ponto de aplicação da carga até a borda. Os nós pertencentes à trajetória percorrida no grafo recebem o valor
         1. O grafo é então traduzido para um gene que inicia uma instância da classe Projeto. Este processo é repetido
         e o resultado de 100 iterações é retornado numa lista.
-
-        Argumentos
-        ----------
-        t: int -- Espessura interna mínima
-
-        Retorna
-        -------
-        projetos: List[Projetos] -- Instâncias da classe Projeto que carregam genes adequados ao problema
         """
 
         genes = []
@@ -31,12 +25,18 @@ class PlacaEmBalanço(PlacaEmBalanço):
             grafo = np.random.choice((True, False), (7, 14), p=(0.15, 0.85))
 
             # Determina os pontos de corte e retorna seus índices i e j
-            kis = self._fatiar_intervalo(c=38, t=t, f=7, dividir_ao_meio=True)
-            kjs = self._fatiar_intervalo(c=76, t=t, f=14, dividir_ao_meio=False)
+            pontos_de_corte_horizontal = self._fatiar_intervalo(número_de_fatias=7,
+                                                                dividir_ao_meio=True,
+                                                                comprimento_total=self.n,
+                                                                comprimento_mínimo_das_fatias=espessura_interna_mínima)
+            pontos_de_corte_vertical = self._fatiar_intervalo(número_de_fatias=14,
+                                                              dividir_ao_meio=False,
+                                                              comprimento_total=2*self.n,
+                                                              comprimento_mínimo_das_fatias=espessura_interna_mínima)
 
             # Caminha aleatoriamente pelo grafo desde o ponto de aplicação da força até uma borda,
             # preenchendo as fatias ao longo da trajetória
-            i_chegada=int(np.where(kis == 19)[0])
+            i_chegada = int(np.where(pontos_de_corte_horizontal == int(self.n // 2))[0])
 
             trajetória = np.zeros((7, 14), dtype=bool)
 
@@ -45,14 +45,16 @@ class PlacaEmBalanço(PlacaEmBalanço):
 
             grafo |= trajetória
 
-            gene = self._formar_gene_a_partir_do(grafo, kis, kjs)
+            gene = self._formar_gene_a_partir_do(grafo,
+                                                 pontos_de_corte_vertical,
+                                                 pontos_de_corte_horizontal)
 
             genes.append(gene)
 
         return genes
 
     @staticmethod
-    def _caminhada_desde_o_canto_com(i_partida, i_chegada, grafo, p):
+    def _caminhada_desde_o_canto_com(i_partida: int, i_chegada: int, grafo: 'Matriz', p: float) -> None:
         j_partida = 0
 
         def reta(j):
@@ -115,10 +117,13 @@ class PlacaEmBalanço(PlacaEmBalanço):
         grafo[i, j] = True
 
     @staticmethod
-    def _atende_os_requisitos_mínimos(fenótipo, borda_alcançada):
+    def _atende_os_requisitos_mínimos(proj: 'Projeto', fenótipo: 'Matriz', borda_alcançada: bool) -> bool:
         if borda_alcançada:
+            if not (fenótipo[0, 0] and fenótipo[-1, 0]):
+                print(f"> Projeto {proj.nome} desconectado dos cantos da borda")
             return fenótipo[0, 0] and fenótipo[-1, 0]
         else:
+            print(f"> Projeto {proj.nome} desconectado da borda")
             return False
 
 

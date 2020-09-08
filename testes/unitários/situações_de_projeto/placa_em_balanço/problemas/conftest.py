@@ -1,0 +1,15 @@
+import pytest
+
+
+@pytest.fixture
+def parâmetros_de_teste():
+    return {"DESLOCAMENTO_LIMITE_DO_MATERIAL": 0.005,
+            "MÓDULO_DE_YOUNG_DO_MATERIAL": 210e9,
+            "COEFICIENTE_DE_POYSSON": 0.3,
+            "MAGNITUDE_DA_CARGA_APLICADA": 100e6,
+            "ESPESSURA_DO_ELEMENTO": 0.01,
+            "ORDEM_DE_REFINAMENTO_DA_MALHA": 20,
+            "CONSTANTE_DE_PENALIZAÇÃO_DA_ÁREA_DESCONECTADA": 0.1,
+            "CONSTANTE_DE_PENALIZAÇÃO_SOB_DESLOCAMENTO_EXCEDENTE": 10,
+            "MÉTODO_PADRÃO_DE_MONTAGEM_DA_MATRIZ_DE_RIGIDEZ_GERAL": "OptV2"}
+
