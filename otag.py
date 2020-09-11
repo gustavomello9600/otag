@@ -26,7 +26,7 @@ info_gerações = []
 
 situação_de_projeto = "placa_em_balanço"
 parâmetros = "padrão.json"
-ambiente = "Kane_&_Schoenauer.py"
+ambiente = "Kane_e_Schoenauer.py"
 problema = "P_no_meio_da_extremidade_direita.py"
 
 
