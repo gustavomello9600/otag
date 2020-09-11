@@ -21,7 +21,6 @@ from typing import Any, Tuple, List, Dict, Union, MutableSequence, ClassVar
 import sympy
 import numpy as np
 
-
 Real = Union[int, float]
 Vetor = Union[MutableSequence[Real], np.ndarray]
 Matriz = Union[MutableSequence[Vetor], np.ndarray]

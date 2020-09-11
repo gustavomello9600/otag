@@ -289,6 +289,7 @@ class PlacaEmBalanço(Problema):
 
         proj.adaptação_testada = True
 
+
     def _determinar_fenótipo(self, gene: Gene, l: float
                              ) -> Tuple[Matriz, bool, List[MembranaQuadrada], List[Nó], Matriz]:
         """
@@ -327,9 +328,6 @@ class PlacaEmBalanço(Problema):
         contexto = (l, gene_útil, elementos, nós, me, índice_na_malha,
                     etiquetas_de_nós_já_construídos, etiquetas_de_elementos_já_construídos)
 
-        # Simplifica a chamada de métodos auxiliares
-        peb = PlacaEmBalanço
-
         # Executa o algoritmo de busca
         while buscando:
 
@@ -360,8 +358,8 @@ class PlacaEmBalanço(Problema):
                     if esquerda and not gene_útil[i][j - 1]:
                         possíveis_ramificações.add((i, j - 1, "esquerda"))
 
-                peb._adicionar_à_malha_o_elemento_em(i, j, contexto=contexto)
-                peb._remover_de(possíveis_ramificações, i, j)
+                self._adicionar_à_malha_o_elemento_em(i, j, contexto=contexto)
+                self._remover_de(possíveis_ramificações, i, j)
 
                 # Decide se continua descendo ou se passa a subir
                 if descida:
@@ -400,8 +398,8 @@ class PlacaEmBalanço(Problema):
                     if esquerda and not gene_útil[i][j - 1]:
                         possíveis_ramificações.add((i, j - 1, "esquerda"))
 
-                peb._adicionar_à_malha_o_elemento_em(i, j, contexto=contexto)
-                peb._remover_de(possíveis_ramificações, i, j)
+                self._adicionar_à_malha_o_elemento_em(i, j, contexto=contexto)
+                self._remover_de(possíveis_ramificações, i, j)
 
                 # Decide se continua descendo ou se passa a subir
                 if subida:
@@ -511,7 +509,8 @@ class PlacaEmBalanço(Problema):
             Ke_expandido = np.zeros((graus_de_liberdade, graus_de_liberdade))
 
             índices = np.array([
-                [2 * malha.índice_de[n], 2 * malha.índice_de[n] + 1] for n in elemento.nós
+                [2 * malha.índice_de[n], 2 * malha.índice_de[n] + 1]
+                for n in elemento.nós
             ]).flatten()
 
             for ie in range(len(índices)):

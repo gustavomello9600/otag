@@ -75,7 +75,11 @@ def teste_penalização(placa_em_balanço, projeto_teste, capsys):
     assert f"> Projeto {projeto_teste.nome} penalizado: Dmax - Dlim = " in saída_da_execução
 
 
-@pytest.mark.parametrize("método", ["expansão", "compacto", "OptV1", "OptV2"])
+@pytest.mark.parametrize("método",
+    [pytest.param("expansão", marks=pytest.mark.skip(reason="Pouco utilizado e computacionalmente custoso")),
+     pytest.param("compacto", marks=pytest.mark.skip(reason="Pouco utilizado e computacionalmente custoso")),
+     pytest.param("OptV1", marks=pytest.mark.skip(reason="Pouco utilizado e computacionalmente custoso")),
+     pytest.param("OptV2")])
 def teste_montadores(placa_em_balanço, projeto_teste, método):
     placa_em_balanço._método_padrão = método
 

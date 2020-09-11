@@ -47,12 +47,8 @@ def teste_calcular():
     assert math.isclose(Ke[0, 0], (2 * t * E * (v - 3)) / (3 * (l ** 2) * (v ** 2 - 1)))
 
 
+@pytest.mark.skip(reason="Computacionalmente custoso.")
 def teste_construir(monkeypatch):
-    def retornar_integração_pronta(*args, **kwargs):
-        return K_base.matriz
-
-    with monkeypatch.context() as patch:
-        patch.setattr(sympy.ImmutableDenseMatrix, "integrate", retornar_integração_pronta)
-        K_matriz, dicionário_de_símbolos = K_base.construir()
+    K_matriz, dicionário_de_símbolos = K_base.construir()
 
     assert K_matriz == K_base.matriz
