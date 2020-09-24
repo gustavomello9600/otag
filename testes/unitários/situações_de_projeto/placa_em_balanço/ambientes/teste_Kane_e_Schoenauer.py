@@ -1,4 +1,3 @@
-import random
 from copy import deepcopy
 from itertools import cycle
 from unittest.mock import Mock
