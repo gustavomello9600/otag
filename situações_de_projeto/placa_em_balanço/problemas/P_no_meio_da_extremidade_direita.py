@@ -301,10 +301,63 @@ class PlacaEmBalanço(Problema):
         nós. Embora ter uma função que lide com tantas operações ao mesmo tempo não seja o padrão de programação
         recomendável na maioria dos casos, aqui se justifica pelo ganho em performance.
         """
+
+        def adicionar_à_malha_o_elemento_em(i: int, j: int) -> None:
+
+            # Marca a posição como pertencente ao gene útil
+            gene_útil[i][j] = True
+
+            # Inicializa os nós dos cantos do elemento
+            y = 1 - i * l
+            ul, ur, dr, dl = Nó(j * l, y, etiqueta=(i, j)), \
+                             Nó((j + 1) * l, y, etiqueta=(i, j + 1)), \
+                             Nó((j + 1) * l, y - l, etiqueta=(i + 1, j + 1)), \
+                             Nó(j * l, y - l, etiqueta=(i + 1, j))
+
+            índices_globais_dos_cantos = []
+
+            # Para cada nó em cada canto
+            for nó in (ul, ur, dr, dl):
+
+                # Se o índice do nó ainda não foi visto
+                if nó.etiqueta not in etiquetas_de_nós_já_construídos:
+
+                    # Adiciona o canto à lista de nós que comporão a malha
+                    nós.append(nó)
+
+                    # Define o índice do canto na malha como o índice corrente
+                    índice_na_malha[nó.etiqueta] = len(etiquetas_de_nós_já_construídos)
+                    índices_globais_dos_cantos.append(len(etiquetas_de_nós_já_construídos))
+
+                    # Define que o nó já foi visto
+                    etiquetas_de_nós_já_construídos.add(nó.etiqueta)
+
+                else:
+                    índices_globais_dos_cantos.append(índice_na_malha[nó.etiqueta])
+
+            iul, iur, idr, idl = índices_globais_dos_cantos
+
+            # Atualiza a matriz de correspondência entre os índices
+            # locais e globais dos nós para o elemento atual
+            me.append((2 * iul,
+                       2 * iul + 1,
+                       2 * iur,
+                       2 * iur + 1,
+                       2 * idr,
+                       2 * idr + 1,
+                       2 * idl,
+                       2 * idl + 1))
+
+            # Cria um elemento com os cantos e o adiciona
+            # à lista daqueles que comporão a malha
+            if ul.etiqueta not in etiquetas_de_elementos_já_construídos:
+                elementos.append(MembranaQuadrada((ul, ur, dr, dl)))
+                etiquetas_de_elementos_já_construídos.add(ul.etiqueta)
+
         gene_útil = np.zeros((self.n, 2*self.n), dtype=bool)
 
         # Define a posição inicial do algoritmo de busca
-        i = int(self.n // 2)
+        i = self.n // 2
         j = 2*self.n - 1
 
         elementos = []
@@ -323,10 +376,6 @@ class PlacaEmBalanço(Problema):
         buscando = True
         descida = True
         subida = False
-
-        # Junta as variáveis importantes para métodos auxiliares
-        contexto = (l, gene_útil, elementos, nós, me, índice_na_malha,
-                    etiquetas_de_nós_já_construídos, etiquetas_de_elementos_já_construídos)
 
         # Executa o algoritmo de busca
         while buscando:
@@ -358,7 +407,7 @@ class PlacaEmBalanço(Problema):
                     if esquerda and not gene_útil[i][j - 1]:
                         possíveis_ramificações.add((i, j - 1, "esquerda"))
 
-                self._adicionar_à_malha_o_elemento_em(i, j, contexto=contexto)
+                adicionar_à_malha_o_elemento_em(i, j)
                 self._remover_de(possíveis_ramificações, i, j)
 
                 # Decide se continua descendo ou se passa a subir
@@ -398,7 +447,7 @@ class PlacaEmBalanço(Problema):
                     if esquerda and not gene_útil[i][j - 1]:
                         possíveis_ramificações.add((i, j - 1, "esquerda"))
 
-                self._adicionar_à_malha_o_elemento_em(i, j, contexto=contexto)
+                adicionar_à_malha_o_elemento_em(i, j)
                 self._remover_de(possíveis_ramificações, i, j)
 
                 # Decide se continua descendo ou se passa a subir
@@ -418,62 +467,6 @@ class PlacaEmBalanço(Problema):
         me = np.array(me, dtype="int16").T
 
         return gene_útil, borda_alcançada, elementos, nós, me
-
-    @staticmethod
-    def _adicionar_à_malha_o_elemento_em(i: int, j: int, contexto: tuple) -> None:
-        # Recebe o contexto
-        (l, gene_útil, elementos, nós, me, índice_na_malha,
-         etiquetas_de_nós_já_construídos, etiquetas_de_elementos_já_construídos) = contexto
-
-        # Marca a posição como pertencente ao gene útil
-        gene_útil[i][j] = True
-
-        # Inicializa os nós dos cantos do elemento
-        y = 1 - i * l
-        ul, ur, dr, dl = Nó(      j*l,     y, etiqueta=(    i,     j)), \
-                         Nó((j + 1)*l,     y, etiqueta=(    i, j + 1)), \
-                         Nó((j + 1)*l, y - l, etiqueta=(i + 1, j + 1)), \
-                         Nó(      j*l, y - l, etiqueta=(i + 1,     j))
-
-        índices_globais_dos_cantos = []
-
-        # Para cada nó em cada canto
-        for nó in (ul, ur, dr, dl):
-
-            # Se o índice do nó ainda não foi visto
-            if nó.etiqueta not in etiquetas_de_nós_já_construídos:
-
-                # Adiciona o canto à lista de nós que comporão a malha
-                nós.append(nó)
-
-                # Define o índice do canto na malha como o índice corrente
-                índice_na_malha[nó.etiqueta] = len(etiquetas_de_nós_já_construídos)
-                índices_globais_dos_cantos.append(len(etiquetas_de_nós_já_construídos))
-
-                # Define que o nó já foi visto
-                etiquetas_de_nós_já_construídos.add(nó.etiqueta)
-
-            else:
-                índices_globais_dos_cantos.append(índice_na_malha[nó.etiqueta])
-
-        iul, iur, idr, idl = índices_globais_dos_cantos
-
-        # Atualiza a matriz de correspondência entre os índices
-        # locais e globais dos nós para o elemento atual
-        me.append((2 * iul,
-                   2 * iul + 1,
-                   2 * iur,
-                   2 * iur + 1,
-                   2 * idr,
-                   2 * idr + 1,
-                   2 * idl,
-                   2 * idl + 1))
-
-        # Cria um elemento com os cantos e o adiciona
-        # à lista daqueles que comporão a malha
-        if ul.etiqueta not in etiquetas_de_elementos_já_construídos:
-            elementos.append(MembranaQuadrada((ul, ur, dr, dl)))
-            etiquetas_de_elementos_já_construídos.add(ul.etiqueta)
 
     @staticmethod
     def _remover_de(possíveis_ramificações: set, i: int, j: int) -> None:
