@@ -3,8 +3,9 @@
 ![versão_do_python](https://img.shields.io/badge/python-3.7%2B-green)
 ![arquitetura_master](https://img.shields.io/badge/arquitetura-v1.1-blue)
 ![melhorias_planejadas](https://img.shields.io/github/issues-raw/gustavomello9600/otag?label=melhorias%20planejadas)
-![Integração Contínua](https://github.com/gustavomello9600/otag/workflows/Integra%C3%A7%C3%A3o%20Cont%C3%ADnua/badge.svg)
 ![testagem_dos_módulos_de_suporte](https://img.shields.io/badge/testagem%20dos%20m%C3%B3dulos%20de%20suporte-100%25-brightgreen)
+
+![Integração Contínua](https://github.com/gustavomello9600/otag/workflows/Integra%C3%A7%C3%A3o%20Cont%C3%ADnua/badge.svg)
 
 <p align="center">
   <img src="https://i.imgur.com/JR4uMyO.png" />
