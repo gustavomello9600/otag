@@ -3,13 +3,13 @@ import numpy as np
 
 
 @numba.njit(cache=True)
-def determinar_fenótipo(gene, n):
-    l = 1/n
+def determinar_fenótipo(gene):
+    n, m = gene.shape
 
     gene_útil = []
     for i in range(n):
         linha = []
-        for j in range(2*n):
+        for j in range(m):
             linha.append(False)
         gene_útil.append(linha)
 
@@ -149,6 +149,6 @@ def teste_determinar_fenótipo():
                                    [f, f, f, f, f, T, T, T, T, f],
                                    [f, f, f, f, f, f, T, f, f, f]], dtype=bool)
     
-    resultado, borda_alcançada = determinar_fenótipo(gene_teste, 5)
+    resultado, borda_alcançada = determinar_fenótipo(gene_teste)
     assert np.all(resultado == resultado_esperado)
     assert borda_alcançada
