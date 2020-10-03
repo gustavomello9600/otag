@@ -241,7 +241,7 @@ class PlacaEmBalanço(Problema):
         l = self.lado_dos_elementos
 
         # Chama o algoritmo de identificação da porção útil do gene e construção do fenótipo.
-        fenótipo, borda_alcançada, elementos_conectados, nós, me = self._determinar_fenótipo(proj.gene, l)
+        fenótipo, borda_alcançada, elementos_conectados, nós, me = self._determinar_fenótipo(proj.gene)
 
         if not self._atende_os_requisitos_mínimos(proj, fenótipo, borda_alcançada):
             proj.adaptação = 0
@@ -290,8 +290,7 @@ class PlacaEmBalanço(Problema):
         proj.adaptação_testada = True
 
 
-    def _determinar_fenótipo(self, gene: Gene, l: float
-                             ) -> Tuple[Matriz, bool, List[MembranaQuadrada], List[Nó], Matriz]:
+    def _determinar_fenótipo(self, gene: Gene) -> Tuple[Matriz, bool, List[MembranaQuadrada], List[Nó], Matriz]:
         """
         Executa um algoritmo de busca responsável por determinar, para um certo gene cuja expressão fenotípica é dada
         por uma malha de elementos_finitos quadrados de lado l, a maior porção contínua de matéria satisfazendo as res-
@@ -302,10 +301,136 @@ class PlacaEmBalanço(Problema):
         recomendável na maioria dos casos, aqui se justifica pelo ganho em performance.
         """
 
-        def adicionar_à_malha_o_elemento_em(i: int, j: int) -> None:
+        # Essa matriz receberá as posições por onde o algoritmo de busca passar
+        fenótipo = np.zeros((self.n, 2*self.n), dtype=bool)
 
-            # Marca a posição como pertencente ao gene útil
-            gene_útil[i][j] = True
+        # Define a posição inicial do algoritmo de busca e inicializa seus parâmetros
+        i = self.n // 2
+        j = 2*self.n - 1
+
+        buscando = True
+        descida = True
+        subida = False
+        borda_alcançada = False
+        último_movimento = "esquerda"
+        possíveis_ramificações = set()
+
+        def busca_e_construção():
+            nonlocal gene
+            nonlocal fenótipo
+            nonlocal i, j
+            nonlocal buscando
+            nonlocal descida, subida
+            nonlocal borda_alcançada
+            nonlocal último_movimento
+            nonlocal possíveis_ramificações
+
+            while buscando:
+
+                # busca vertical
+                partida = (i, j)
+
+                # começar descida
+                while descida:
+
+                    # consigo descer mais?
+                    if i != self.n - 1:
+                        abaixo = gene[i + 1, j]
+                        descida = abaixo
+                    else:
+                        descida = False
+
+                    # há ramificações possíveis aqui do lado?
+                    if j != 2*self.n - 1 and último_movimento != "esquerda":
+                        direita = gene[i, j + 1]
+                        if direita and not fenótipo[i, j + 1]:
+                            possíveis_ramificações.add((i, j + 1, "direita"))
+
+                    if j == 0:
+                        borda_alcançada = True
+
+                    if j != 0 and último_movimento != "direita":
+                        esquerda = gene[i, j - 1]
+                        if esquerda and not fenótipo[i, j - 1]:
+                            possíveis_ramificações.add((i, j - 1, "esquerda"))
+
+                    fenótipo[i, j] = True
+                    adicionar_à_malha_o_elemento_em_(i, j)
+                    self._remover_de(possíveis_ramificações, i, j)
+
+                    # Decide se continua descendo ou se passa a subir
+                    if descida:
+                        i = i + 1
+                        último_movimento = "baixo"
+                    else:
+                        if partida[0] != 0:
+                            subida = gene[partida[0] - 1, partida[1]]
+                        else:
+                            subida = False
+
+                        if subida:
+                            i = partida[0] - 1
+
+                # começar subida
+                while subida:
+
+                    # consigo subir mais?
+                    if i != 0:
+                        acima = gene[i - 1, j]
+                        subida = acima
+                    else:
+                        subida = False
+
+                    # há ramificações possíveis aqui do lado?
+                    if j != 2*self.n - 1 and último_movimento != "esquerda":
+                        direita = gene[i, j + 1]
+                        if direita and not fenótipo[i, j + 1]:
+                            possíveis_ramificações.add((i, j + 1, "direita"))
+
+                    if j == 0:
+                        borda_alcançada = True
+
+                    if j != 0 and último_movimento != "direita":
+                        esquerda = gene[i, j - 1]
+                        if esquerda and not fenótipo[i, j - 1]:
+                            possíveis_ramificações.add((i, j - 1, "esquerda"))
+
+                    fenótipo[i, j] = True
+                    adicionar_à_malha_o_elemento_em_(i, j)
+                    self._remover_de(possíveis_ramificações, i, j)
+
+                    # Decide se continua descendo ou se passa a subir
+                    if subida:
+                        i = i - 1
+                        último_movimento = "cima"
+
+                if len(possíveis_ramificações) > 0:
+                    i, j, último_movimento = possíveis_ramificações.pop()
+                    descida = True
+                    subida = False
+
+                else:
+                    buscando = False
+
+        # Inicializa componentes da malha
+        l = 1 / self.n
+        elementos = []
+        nós = []
+        me = []
+
+        # Inicializa estruturas de dados auxiliares que ajudam a manter curso dos índices dos nós e elementos
+        etiquetas_de_elementos_já_construídos = set()
+        etiquetas_de_nós_já_construídos = set()
+        índice_na_malha = dict()
+
+        def adicionar_à_malha_o_elemento_em_(i: int, j: int) -> None:
+            nonlocal l
+            nonlocal elementos
+            nonlocal nós
+            nonlocal me
+            nonlocal etiquetas_de_elementos_já_construídos
+            nonlocal etiquetas_de_nós_já_construídos
+            nonlocal índice_na_malha
 
             # Inicializa os nós dos cantos do elemento
             y = 1 - i * l
@@ -331,7 +456,6 @@ class PlacaEmBalanço(Problema):
 
                     # Define que o nó já foi visto
                     etiquetas_de_nós_já_construídos.add(nó.etiqueta)
-
                 else:
                     índices_globais_dos_cantos.append(índice_na_malha[nó.etiqueta])
 
@@ -354,119 +478,13 @@ class PlacaEmBalanço(Problema):
                 elementos.append(MembranaQuadrada((ul, ur, dr, dl)))
                 etiquetas_de_elementos_já_construídos.add(ul.etiqueta)
 
-        gene_útil = np.zeros((self.n, 2*self.n), dtype=bool)
-
-        # Define a posição inicial do algoritmo de busca
-        i = self.n // 2
-        j = 2*self.n - 1
-
-        elementos = []
-        nós = []
-        me = []
-
-        # Inicializa estruturas de dados auxiliares que ajudam a manter curso dos índices dos nós e elementos
-        etiquetas_de_elementos_já_construídos = set()
-        etiquetas_de_nós_já_construídos = set()
-        índice_na_malha = dict()
-
-        # Inicializa parâmetros do algoritmo de busca
-        possíveis_ramificações = set()
-        último_movimento = "esquerda"
-        borda_alcançada = False
-        buscando = True
-        descida = True
-        subida = False
-
-        # Executa o algoritmo de busca
-        while buscando:
-
-            # busca vertical
-            partida = (i, j)
-
-            # começar descida
-            while descida:
-
-                # consigo descer mais?
-                if i != self.n - 1:
-                    abaixo = gene[i + 1][j]
-                    descida = abaixo
-                else:
-                    descida = False
-
-                # há ramificações possíveis aqui do lado?
-                if j != 2*self.n - 1 and último_movimento != "esquerda":
-                    direita = gene[i][j + 1]
-                    if direita and not gene_útil[i][j + 1]:
-                        possíveis_ramificações.add((i, j + 1, "direita"))
-
-                if j == 0:
-                    borda_alcançada = True
-
-                if j != 0 and último_movimento != "direita":
-                    esquerda = gene[i][j - 1]
-                    if esquerda and not gene_útil[i][j - 1]:
-                        possíveis_ramificações.add((i, j - 1, "esquerda"))
-
-                adicionar_à_malha_o_elemento_em(i, j)
-                self._remover_de(possíveis_ramificações, i, j)
-
-                # Decide se continua descendo ou se passa a subir
-                if descida:
-                    i = i + 1
-                    último_movimento = "baixo"
-                else:
-                    if partida[0] != 0:
-                        subida = gene[partida[0] - 1][partida[1]]
-                    else:
-                        subida = False
-
-                    if subida:
-                        i = partida[0] - 1
-
-            # começar subida
-            while subida:
-
-                # consigo subir mais?
-                if i != 0:
-                    acima = gene[i - 1][j]
-                    subida = acima
-                else:
-                    subida = False
-
-                # há ramificações possíveis aqui do lado?
-                if j != 2*self.n - 1 and último_movimento != "esquerda":
-                    direita = gene[i][j + 1]
-                    if direita and not gene_útil[i][j + 1]:
-                        possíveis_ramificações.add((i, j + 1, "direita"))
-
-                if j == 0:
-                    borda_alcançada = True
-
-                if j != 0 and último_movimento != "direita":
-                    esquerda = gene[i][j - 1]
-                    if esquerda and not gene_útil[i][j - 1]:
-                        possíveis_ramificações.add((i, j - 1, "esquerda"))
-
-                adicionar_à_malha_o_elemento_em(i, j)
-                self._remover_de(possíveis_ramificações, i, j)
-
-                # Decide se continua descendo ou se passa a subir
-                if subida:
-                    i = i - 1
-                    último_movimento = "cima"
-
-            if len(possíveis_ramificações) > 0:
-                i, j, último_movimento = possíveis_ramificações.pop()
-                descida = True
-                subida = False
-
-            else:
-                buscando = False
+        # Executa o algoritmo de busca e construção
+        busca_e_construção()
 
         # Transforma a lista de tuplas em matriz
         me = np.array(me, dtype="int16").T
 
-        return gene_útil, borda_alcançada, elementos, nós, me
+        return fenótipo, borda_alcançada, elementos, nós, me
 
     @staticmethod
     def _remover_de(possíveis_ramificações: set, i: int, j: int) -> None:
