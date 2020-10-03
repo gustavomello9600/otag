@@ -1,0 +1,1 @@
+C:\Users\Gustavo\ Mello\dev\otag\otimização\algoritmos\formação_de_malha\rust_alg\target\release\rust_alg.exe: C:\Users\Gustavo\ Mello\dev\otag\otimização\algoritmos\formação_de_malha\rust_alg\src\main.rs build.rs
